@@ -1,6 +1,4 @@
 // lib/screens/player_screen.dart
-// Full-screen Now Playing UI with album art, playback controls, and progress bar
-
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:cached_network_image/cached_network_image.dart';
@@ -14,106 +12,69 @@ class PlayerScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: const Color(0xFF121212),
-
-      body:
-      GestureDetector(
-        onVerticalDragEnd: (details) {
-          if (details.primaryVelocity != null &&
-              details.primaryVelocity! > 300) {
-            Navigator.pop(context);
-          }
-        },
-        child:Consumer<PlayerProvider>(
-
+      body: Consumer<PlayerProvider>(
         builder: (context, player, _) {
-          final song = player.currentSong;
-          if (song == null) return const SizedBox.shrink();
+          final item = player.currentItem;
+          if (item == null) return const SizedBox.shrink();
+
           return SafeArea(
             child: Column(
               children: [
-                // ── Top Bar ─────────────────────────────────────────────
                 _buildTopBar(context),
 
-                // ── Album Art ───────────────────────────────────────────
+                // Album Art
                 Expanded(
                   child: Padding(
                     padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 16),
-                    child: _AlbumArt(
-                      imageUrl: song.albumArt,
-                      isPlaying: player.isPlaying,
-                    ),
+                    child: _AlbumArt(imageUrl: item.artworkUrl, isPlaying: player.isPlaying),
                   ),
                 ),
 
-                // ── Song Info + Like ────────────────────────────────────
+                // Song Info + Like
                 Padding(
                   padding: const EdgeInsets.symmetric(horizontal: 24),
                   child: Row(
                     children: [
-                      // Song title and artist
                       Expanded(
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            Text(
-                              song.title,
-                              style: const TextStyle(
-                                color: Colors.white,
-                                fontSize: 22,
-                                fontWeight: FontWeight.bold,
-                              ),
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                            ),
+                            Text(item.title,
+                                style: const TextStyle(color: Colors.white, fontSize: 22, fontWeight: FontWeight.bold),
+                                maxLines: 1, overflow: TextOverflow.ellipsis),
                             const SizedBox(height: 4),
-                            Text(
-                              song.artist,
-                              style: const TextStyle(
-                                color: Color(0xFFB3B3B3),
-                                fontSize: 15,
-                              ),
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                            ),
+                            Text(item.subtitle,
+                                style: const TextStyle(color: Color(0xFFB3B3B3), fontSize: 15),
+                                maxLines: 1, overflow: TextOverflow.ellipsis),
                           ],
                         ),
                       ),
-                      // Like button
                       IconButton(
                         icon: Icon(
-                          song.isLiked ? Icons.favorite : Icons.favorite_border,
-                          color: song.isLiked ? const Color(0xFF1DB954) : Colors.white,
+                          item.isLiked ? Icons.favorite : Icons.favorite_border,
+                          color: item.isLiked ? const Color(0xFF1DB954) : Colors.white,
                           size: 26,
                         ),
-                        onPressed: () => player.toggleLike(song),
+                        onPressed: () => player.toggleLike(item),
                       ),
                     ],
                   ),
                 ),
                 const SizedBox(height: 20),
 
-                // ── Progress Slider ──────────────────────────────────────
+                // Progress Slider
                 Padding(
                   padding: const EdgeInsets.symmetric(horizontal: 24),
                   child: Column(
                     children: [
-                      Slider(
-                        value: player.progress,
-                        onChanged: (v) => player.seekTo(v),
-                      ),
+                      Slider(value: player.progress, onChanged: player.seekTo),
                       Padding(
                         padding: const EdgeInsets.symmetric(horizontal: 8),
                         child: Row(
                           mainAxisAlignment: MainAxisAlignment.spaceBetween,
                           children: [
-                            Text(
-                              _formatDuration(player.position),
-                              style: const TextStyle(color: Color(0xFFB3B3B3), fontSize: 12),
-                            ),
-                            Text(
-                              _formatDuration(player.duration),
-                              style: const TextStyle(color: Color(0xFFB3B3B3), fontSize: 12),
-                            ),
+                            Text(_fmt(player.position), style: const TextStyle(color: Color(0xFFB3B3B3), fontSize: 12)),
+                            Text(_fmt(player.duration), style: const TextStyle(color: Color(0xFFB3B3B3), fontSize: 12)),
                           ],
                         ),
                       ),
@@ -122,59 +83,39 @@ class PlayerScreen extends StatelessWidget {
                 ),
                 const SizedBox(height: 12),
 
-                // ── Playback Controls ────────────────────────────────────
+                // Controls
                 Padding(
                   padding: const EdgeInsets.symmetric(horizontal: 24),
                   child: Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      // Shuffle
                       IconButton(
-                        icon: Icon(
-                          Icons.shuffle,
-                          color: player.isShuffle ? const Color(0xFF1DB954) : Colors.white,
-                          size: 22,
-                        ),
+                        icon: Icon(Icons.shuffle, size: 22,
+                            color: player.isShuffle ? const Color(0xFF1DB954) : Colors.white),
                         onPressed: player.toggleShuffle,
                       ),
-                      // Previous
                       IconButton(
                         icon: const Icon(Icons.skip_previous, color: Colors.white, size: 38),
                         onPressed: player.canSkipPrev ? player.skipPrev : null,
                       ),
-                      // Play / Pause (big button)
                       GestureDetector(
                         onTap: player.togglePlayPause,
                         child: Container(
-                          width: 68,
-                          height: 68,
-                          decoration: const BoxDecoration(
-                            color: Colors.white,
-                            shape: BoxShape.circle,
-                          ),
-                          child: Icon(
-                            player.isPlaying ? Icons.pause : Icons.play_arrow,
-                            color: Colors.black,
-                            size: 36,
-                          ),
+                          width: 68, height: 68,
+                          decoration: const BoxDecoration(color: Colors.white, shape: BoxShape.circle),
+                          child: Icon(player.isPlaying ? Icons.pause : Icons.play_arrow,
+                              color: Colors.black, size: 36),
                         ),
                       ),
-                      // Next
                       IconButton(
                         icon: const Icon(Icons.skip_next, color: Colors.white, size: 38),
                         onPressed: player.canSkipNext ? player.skipNext : null,
                       ),
-                      // Repeat
                       IconButton(
                         icon: Icon(
-                          player.repeatMode == PlayerRepeatMode.repeatOne
-                              ? Icons.repeat_one
-                              : Icons.repeat,
-                          color: player.repeatMode != PlayerRepeatMode.none
-                              ? const Color(0xFF1DB954)
-                              : Colors.white,
-                          size: 22,
-                        ),
+                            player.isRepeatOne ? Icons.repeat_one : Icons.repeat,
+                            size: 22,
+                            color: player.isRepeating ? const Color(0xFF1DB954) : Colors.white),
                         onPressed: player.cycleRepeatMode,
                       ),
                     ],
@@ -182,24 +123,15 @@ class PlayerScreen extends StatelessWidget {
                 ),
                 const SizedBox(height: 20),
 
-                // ── Bottom Row (share, queue, device) ────────────────────
+                // Bottom row
                 Padding(
                   padding: const EdgeInsets.symmetric(horizontal: 24),
                   child: Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      IconButton(
-                        icon: const Icon(Icons.share_outlined, color: Color(0xFFB3B3B3), size: 20),
-                        onPressed: () {},
-                      ),
-                      IconButton(
-                        icon: const Icon(Icons.queue_music, color: Color(0xFFB3B3B3), size: 20),
-                        onPressed: () {},
-                      ),
-                      IconButton(
-                        icon: const Icon(Icons.devices, color: Color(0xFFB3B3B3), size: 20),
-                        onPressed: () {},
-                      ),
+                      IconButton(icon: const Icon(Icons.share_outlined, color: Color(0xFFB3B3B3), size: 20), onPressed: () {}),
+                      IconButton(icon: const Icon(Icons.queue_music, color: Color(0xFFB3B3B3), size: 20), onPressed: () {}),
+                      IconButton(icon: const Icon(Icons.devices, color: Color(0xFFB3B3B3), size: 20), onPressed: () {}),
                     ],
                   ),
                 ),
@@ -209,113 +141,64 @@ class PlayerScreen extends StatelessWidget {
           );
         },
       ),
-    ),);
-  }
-
-  Widget _buildTopBar(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
-      child: Row(
-        children: [
-          // Chevron down to dismiss
-          IconButton(
-            icon: const Icon(Icons.keyboard_arrow_down, size: 30),
-            onPressed: () => Navigator.pop(context),
-          ),
-          // Currently playing label
-          const Expanded(
-            child: Column(
-              children: [
-                Text(
-                  'Now Playing',
-                  style: TextStyle(
-                    color: Color(0xFFB3B3B3),
-                    fontSize: 11,
-                    letterSpacing: 1.5,
-                  ),
-                ),
-              ],
-            ),
-          ),
-          // Options menu
-          IconButton(
-            icon: const Icon(Icons.more_vert),
-            onPressed: () {},
-          ),
-        ],
-      ),
     );
   }
 
-  String _formatDuration(Duration d) {
-    final minutes = d.inMinutes.remainder(60).toString().padLeft(2, '0');
-    final seconds = d.inSeconds.remainder(60).toString().padLeft(2, '0');
-    return '$minutes:$seconds';
+  Widget _buildTopBar(BuildContext context) => Padding(
+    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+    child: Row(
+      children: [
+        IconButton(icon: const Icon(Icons.keyboard_arrow_down, size: 30), onPressed: () => Navigator.pop(context)),
+        const Expanded(
+          child: Text('Now Playing', textAlign: TextAlign.center,
+              style: TextStyle(color: Color(0xFFB3B3B3), fontSize: 11, letterSpacing: 1.5)),
+        ),
+        IconButton(icon: const Icon(Icons.more_vert), onPressed: () {}),
+      ],
+    ),
+  );
+
+  String _fmt(Duration d) {
+    final m = d.inMinutes.remainder(60).toString().padLeft(2, '0');
+    final s = d.inSeconds.remainder(60).toString().padLeft(2, '0');
+    return '$m:$s';
   }
 }
 
-// ── Album Art Widget ──────────────────────────────────────────────────────────
+// ── Album Art with scale animation ───────────────────────────────────────────
 
 class _AlbumArt extends StatefulWidget {
   final String imageUrl;
   final bool isPlaying;
   const _AlbumArt({required this.imageUrl, required this.isPlaying});
-
   @override
   State<_AlbumArt> createState() => _AlbumArtState();
 }
 
 class _AlbumArtState extends State<_AlbumArt> with SingleTickerProviderStateMixin {
-  late AnimationController _controller;
-  late Animation<double> _scaleAnim;
+  late final AnimationController _ctrl = AnimationController(vsync: this, duration: const Duration(milliseconds: 300));
+  late final Animation<double> _scale  = Tween(begin: 0.85, end: 1.0).animate(CurvedAnimation(parent: _ctrl, curve: Curves.easeOut));
 
-  @override
-  void initState() {
-    super.initState();
-    _controller = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 300),
-    );
-    _scaleAnim = Tween<double>(begin: 0.85, end: 1.0).animate(
-      CurvedAnimation(parent: _controller, curve: Curves.easeOut),
-    );
-    if (widget.isPlaying) _controller.forward();
-  }
-
-  @override
-  void didUpdateWidget(_AlbumArt old) {
+  @override void initState() { super.initState(); if (widget.isPlaying) _ctrl.forward(); }
+  @override void didUpdateWidget(_AlbumArt old) {
     super.didUpdateWidget(old);
-    if (widget.isPlaying != old.isPlaying) {
-      if (widget.isPlaying) {
-        _controller.forward();
-      } else {
-        _controller.reverse();
-      }
-    }
+    if (widget.isPlaying != old.isPlaying) widget.isPlaying ? _ctrl.forward() : _ctrl.reverse();
   }
+  @override void dispose() { _ctrl.dispose(); super.dispose(); }
 
   @override
-  void dispose() {
-    _controller.dispose();
-    super.dispose();
-  }
+  Widget build(BuildContext context) => ScaleTransition(
+    scale: _scale,
+    child: ClipRRect(
+      borderRadius: BorderRadius.circular(12),
+      child: widget.imageUrl.isNotEmpty
+          ? CachedNetworkImage(imageUrl: widget.imageUrl, fit: BoxFit.cover, width: double.infinity,
+          errorWidget: (_, __, ___) => _placeholder())
+          : _placeholder(),
+    ),
+  );
 
-  @override
-  Widget build(BuildContext context) {
-    return ScaleTransition(
-      scale: _scaleAnim,
-      child: ClipRRect(
-        borderRadius: BorderRadius.circular(12),
-        child: CachedNetworkImage(
-          imageUrl: widget.imageUrl,
-          fit: BoxFit.cover,
-          width: double.infinity,
-          errorWidget: (_, __, ___) => Container(
-            color: const Color(0xFF282828),
-            child: const Icon(Icons.music_note, size: 100, color: Colors.white24),
-          ),
-        ),
-      ),
-    );
-  }
+  Widget _placeholder() => Container(
+      color: const Color(0xFF282828),
+      child: const Icon(Icons.music_note, size: 100, color: Colors.white24));
 }
