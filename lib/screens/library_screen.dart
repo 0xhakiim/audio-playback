@@ -25,7 +25,14 @@ class LibraryScreen extends StatelessWidget {
             final shows  = player.savedShows;
             final isEmpty = liked.isEmpty && shows.isEmpty;
 
-            return CustomScrollView(
+            return RefreshIndicator(
+                onRefresh: () async {
+                  // This triggers the repository to fetch from Firestore again
+                  await player.loadLibrary();
+                },
+                color: const Color(0xFF1DB954), // Spotify Green
+                backgroundColor: const Color(0xFF282828),
+                child:CustomScrollView(
               slivers: [
                 // ── App bar ──────────────────────────────────────────────
                 SliverAppBar(
@@ -123,7 +130,7 @@ class LibraryScreen extends StatelessWidget {
 
                 const SliverToBoxAdapter(child: SizedBox(height: 100)),
               ],
-            );
+            ));
           },
         ),
       ),
