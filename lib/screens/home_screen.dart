@@ -1,4 +1,5 @@
 // lib/screens/home_screen.dart
+
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:cached_network_image/cached_network_image.dart';
@@ -7,7 +8,9 @@ import '../models/media_item_model.dart';
 import '../providers/player_provider.dart';
 import '../services/quran_api.dart';
 import '../services/podcast_api.dart';
+import '../widgets/dynamic_profile_avatar.dart'; // Import Dynamic Avatar Widget
 import 'player_screen.dart';
+import 'profile_screen.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -16,6 +19,9 @@ class HomeScreen extends StatefulWidget {
 }
 
 class _HomeScreenState extends State<HomeScreen> {
+  // GlobalKey to access and reload the state of the profile avatar dynamically
+  final GlobalKey<DynamicProfileAvatarState> _avatarKey = GlobalKey();
+
   List<MediaItemModel> _quranSurahs  = [];
   List<PodcastShow>    _podcastShows = [];
   bool _loading = true;
@@ -72,10 +78,18 @@ class _HomeScreenState extends State<HomeScreen> {
               IconButton(icon: const Icon(Icons.notifications_none), onPressed: () {}),
               Padding(
                 padding: const EdgeInsets.only(right: 12),
-                child: CircleAvatar(
-                  radius: 14,
-                  backgroundColor: const Color(0xFF1DB954),
-                  child: const Text('U', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold)),
+                child: GestureDetector(
+                  onTap: () async {
+                    // 1. Wait for navigation pop
+                    await Navigator.push(
+                      context,
+                      MaterialPageRoute(builder: (context) => const ProfileScreen()),
+                    );
+                    // 2. Trigger dynamic avatar state reloading directly
+                    _avatarKey.currentState?.loadData();
+                  },
+                  // Render the dynamic profile avatar instead of the hardcoded one
+                  child: DynamicProfileAvatar(key: _avatarKey, radius: 14),
                 ),
               ),
             ],
@@ -96,20 +110,15 @@ class _HomeScreenState extends State<HomeScreen> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        // Quick access: first 6 surahs
         if (_quranSurahs.isNotEmpty) ...[
           _QuickGrid(items: _quranSurahs.take(6).toList(), onTap: (item) => _play(item, _quranSurahs)),
           const SizedBox(height: 28),
         ],
-
-        // Quran carousel
         if (_quranSurahs.isNotEmpty) ...[
           _SectionHeader(title: 'Quran — All Surahs', onSeeAll: () {}),
           _MediaCarousel(items: _quranSurahs.take(10).toList(), onTap: (item) => _play(item, _quranSurahs)),
           const SizedBox(height: 28),
         ],
-
-        // Podcast shows carousel
         if (_podcastShows.isNotEmpty) ...[
           _SectionHeader(title: 'Trending Podcasts', onSeeAll: () {}),
           _ShowCarousel(shows: _podcastShows, onTap: (show) => _loadAndPlayPodcast(show)),
@@ -133,8 +142,7 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 }
 
-// ── Quick access 2-column grid ─────────────────────────────────────────────────
-
+// ... Keep the remaining static widgets (_QuickGrid, _SectionHeader, etc.) from home_screen.dart unchanged ...
 class _QuickGrid extends StatelessWidget {
   final List<MediaItemModel> items;
   final void Function(MediaItemModel) onTap;
@@ -179,8 +187,6 @@ class _QuickGrid extends StatelessWidget {
   }
 }
 
-// ── Section header ─────────────────────────────────────────────────────────────
-
 class _SectionHeader extends StatelessWidget {
   final String title;
   final VoidCallback onSeeAll;
@@ -203,8 +209,6 @@ class _SectionHeader extends StatelessWidget {
     );
   }
 }
-
-// ── Media item horizontal carousel ────────────────────────────────────────────
 
 class _MediaCarousel extends StatelessWidget {
   final List<MediaItemModel> items;
@@ -247,8 +251,6 @@ class _MediaCarousel extends StatelessWidget {
   }
 }
 
-// ── Podcast show horizontal carousel ──────────────────────────────────────────
-
 class _ShowCarousel extends StatelessWidget {
   final List<PodcastShow> shows;
   final void Function(PodcastShow) onTap;
@@ -290,8 +292,6 @@ class _ShowCarousel extends StatelessWidget {
   }
 }
 
-// ── Shared thumbnail widget ────────────────────────────────────────────────────
-
 class _Thumb extends StatelessWidget {
   final String url;
   final double size;
@@ -309,8 +309,6 @@ class _Thumb extends StatelessWidget {
       width: size, height: size, color: const Color(0xFF282828),
       child: const Icon(Icons.music_note, color: Colors.white24));
 }
-
-// ── Error view ─────────────────────────────────────────────────────────────────
 
 class _ErrorView extends StatelessWidget {
   final String message;

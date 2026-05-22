@@ -6,6 +6,9 @@
     <!-- Keeps audio playing when screen is off -->
     <uses-permission android:name="android.permission.WAKE_LOCK"/>
 
+    <uses-permission android:name="android.permission.USE_BIOMETRIC"/>
+    <uses-permission android:name="android.permission.USE_FINGERPRINT"/>
+
     <application
         android:label="Media App"
         android:name="${applicationName}"

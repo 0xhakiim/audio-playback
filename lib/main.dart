@@ -3,7 +3,6 @@ import 'package:flutter/services.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:provider/provider.dart';
 
-
 import 'providers/player_provider.dart';
 import 'services/audio_handler.dart';
 import 'services/auth_service.dart';
@@ -11,14 +10,14 @@ import 'screens/auth_gate.dart';
 import 'screens/home_screen.dart';
 import 'screens/search_screen.dart';
 import 'screens/library_screen.dart';
+import 'screens/profile_screen.dart'; // Added profile screen import
 import 'widgets/mini_player.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   SystemChrome.setPreferredOrientations([DeviceOrientation.portraitUp]);
 
-  await Firebase.initializeApp(
-  );
+  await Firebase.initializeApp();
 
   runApp(
     ChangeNotifierProvider(
@@ -71,7 +70,6 @@ class SpotifyCloneApp extends StatelessWidget {
 }
 
 // ── Main scaffold — only shown when logged in ─────────────────────────────────
-
 class MainScaffold extends StatefulWidget {
   const MainScaffold({super.key});
   @override
@@ -82,28 +80,13 @@ class _MainScaffoldState extends State<MainScaffold> {
   int _tab = 0;
   final _screens = const [HomeScreen(), SearchScreen(), LibraryScreen()];
 
-  Future<void> _logout() async {
-    await AuthService().logout();
-    // AuthGate's StreamBuilder detects the sign-out and shows LoginPage
-    // automatically — no Navigator needed
-  }
-
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       body: Stack(
         children: [
           IndexedStack(index: _tab, children: _screens),
-          // Logout button — top right corner, always accessible
-          Positioned(
-            top: MediaQuery.of(context).padding.top + 8,
-            right: 12,
-            child: IconButton(
-              icon: const Icon(Icons.logout, color: Colors.white54, size: 22),
-              tooltip: 'Logout',
-              onPressed: _logout,
-            ),
-          ),
+          // Cleaned up: Floating profile button removed from here
         ],
       ),
       bottomNavigationBar: Column(

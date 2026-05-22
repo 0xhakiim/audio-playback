@@ -1,6 +1,4 @@
 // lib/screens/library_screen.dart
-// Shows ONLY what the user has explicitly liked or saved.
-// No API calls here — reads directly from PlayerProvider.
 
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
@@ -9,10 +7,19 @@ import 'package:cached_network_image/cached_network_image.dart';
 import '../models/media_item_model.dart';
 import '../providers/player_provider.dart';
 import '../services/podcast_api.dart';
+import '../widgets/dynamic_profile_avatar.dart'; // Import Dynamic Avatar Widget
 import 'player_screen.dart';
+import 'profile_screen.dart';
 
-class LibraryScreen extends StatelessWidget {
+class LibraryScreen extends StatefulWidget {
   const LibraryScreen({super.key});
+
+  @override
+  State<LibraryScreen> createState() => _LibraryScreenState();
+}
+
+class _LibraryScreenState extends State<LibraryScreen> {
+  final GlobalKey<DynamicProfileAvatarState> _avatarKey = GlobalKey();
 
   @override
   Widget build(BuildContext context) {
@@ -27,110 +34,111 @@ class LibraryScreen extends StatelessWidget {
 
             return RefreshIndicator(
                 onRefresh: () async {
-                  // This triggers the repository to fetch from Firestore again
                   await player.loadLibrary();
                 },
-                color: const Color(0xFF1DB954), // Spotify Green
+                color: const Color(0xFF1DB954),
                 backgroundColor: const Color(0xFF282828),
-                child:CustomScrollView(
-              slivers: [
-                // ── App bar ──────────────────────────────────────────────
-                SliverAppBar(
-                  backgroundColor: const Color(0xFF121212),
-                  floating: true,
-                  elevation: 0,
-                  title: Row(
-                    children: [
-                      const CircleAvatar(
-                        radius: 16,
-                        backgroundColor: Color(0xFF1DB954),
-                        child: Text('U', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
-                      ),
-                      const SizedBox(width: 10),
-                      Text('Your Library', style: Theme.of(context).textTheme.headlineMedium),
-                    ],
-                  ),
-                ),
-
-                // ── Empty state ──────────────────────────────────────────
-                if (isEmpty)
-                  SliverFillRemaining(
-                    child: Center(
-                      child: Column(
-                        mainAxisAlignment: MainAxisAlignment.center,
+                child: CustomScrollView(
+                  slivers: [
+                    SliverAppBar(
+                      backgroundColor: const Color(0xFF121212),
+                      floating: true,
+                      elevation: 0,
+                      title: Row(
                         children: [
-                          const Icon(Icons.library_music, size: 72, color: Colors.white12),
-                          const SizedBox(height: 16),
-                          const Text('Your library is empty',
-                              style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold)),
-                          const SizedBox(height: 8),
-                          const Text(
-                            'Like surahs or save podcasts\nfrom Search or Home to add them here.',
-                            textAlign: TextAlign.center,
-                            style: TextStyle(color: Color(0xFFB3B3B3), fontSize: 14),
+                          GestureDetector(
+                            onTap: () async {
+                              await Navigator.push(
+                                context,
+                                MaterialPageRoute(builder: (context) => const ProfileScreen()),
+                              );
+                              // Trigger dynamic avatar state reloading directly
+                              _avatarKey.currentState?.loadData();
+                            },
+                            child: DynamicProfileAvatar(key: _avatarKey, radius: 16),
                           ),
-                          const SizedBox(height: 24),
-                          OutlinedButton(
-                            onPressed: () {},
-                            style: OutlinedButton.styleFrom(
-                              foregroundColor: Colors.white,
-                              side: const BorderSide(color: Colors.white),
-                              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
-                            ),
-                            child: const Text('Find something to listen to'),
-                          ),
+                          const SizedBox(width: 10),
+                          Text('Your Library', style: Theme.of(context).textTheme.headlineMedium),
                         ],
                       ),
                     ),
-                  ),
 
-                // ── Liked items section ──────────────────────────────────
-                if (liked.isNotEmpty) ...[
-                  _SectionHeader(
-                    title: 'Liked',
-                    count: liked.length,
-                    icon: Icons.favorite,
-                    iconColor: const Color(0xFF1DB954),
-                  ),
-                  SliverList(
-                    delegate: SliverChildBuilderDelegate(
-                          (_, i) => _MediaTile(
-                        item: liked[i],
-                        onTap: () {
-                          player.playItem(liked[i], playlist: liked);
-                          Navigator.push(context, MaterialPageRoute(builder: (_) => const PlayerScreen()));
-                        },
-                        onLike: () => player.toggleLike(liked[i]),
-                        isLiked: true,
+                    if (isEmpty)
+                      SliverFillRemaining(
+                        child: Center(
+                          child: Column(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              const Icon(Icons.library_music, size: 72, color: Colors.white12),
+                              const SizedBox(height: 16),
+                              const Text('Your library is empty',
+                                  style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold)),
+                              const SizedBox(height: 8),
+                              const Text(
+                                'Like surahs or save podcasts\nfrom Search or Home to add them here.',
+                                textAlign: TextAlign.center,
+                                style: TextStyle(color: Color(0xFFB3B3B3), fontSize: 14),
+                              ),
+                              const SizedBox(height: 24),
+                              OutlinedButton(
+                                onPressed: () {},
+                                style: OutlinedButton.styleFrom(
+                                  foregroundColor: Colors.white,
+                                  side: const BorderSide(color: Colors.white),
+                                  padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+                                ),
+                                child: const Text('Find something to listen to'),
+                              ),
+                            ],
+                          ),
+                        ),
                       ),
-                      childCount: liked.length,
-                    ),
-                  ),
-                ],
 
-                // ── Saved podcast shows section ──────────────────────────
-                if (shows.isNotEmpty) ...[
-                  _SectionHeader(
-                    title: 'Saved Podcasts',
-                    count: shows.length,
-                    icon: Icons.mic,
-                    iconColor: const Color(0xFF9C27B0),
-                  ),
-                  SliverList(
-                    delegate: SliverChildBuilderDelegate(
-                          (_, i) => _ShowTile(
-                        show: shows[i],
-                        onTap: () => _playShow(context, player, shows[i]),
-                        onUnsave: () => player.toggleSaveShow(shows[i]),
+                    if (liked.isNotEmpty) ...[
+                      _SectionHeader(
+                        title: 'Liked',
+                        count: liked.length,
+                        icon: Icons.favorite,
+                        iconColor: const Color(0xFF1DB954),
                       ),
-                      childCount: shows.length,
-                    ),
-                  ),
-                ],
+                      SliverList(
+                        delegate: SliverChildBuilderDelegate(
+                              (_, i) => _MediaTile(
+                            item: liked[i],
+                            onTap: () {
+                              player.playItem(liked[i], playlist: liked);
+                              Navigator.push(context, MaterialPageRoute(builder: (_) => const PlayerScreen()));
+                            },
+                            onLike: () => player.toggleLike(liked[i]),
+                            isLiked: true,
+                          ),
+                          childCount: liked.length,
+                        ),
+                      ),
+                    ],
 
-                const SliverToBoxAdapter(child: SizedBox(height: 100)),
-              ],
-            ));
+                    if (shows.isNotEmpty) ...[
+                      _SectionHeader(
+                        title: 'Saved Podcasts',
+                        count: shows.length,
+                        icon: Icons.mic,
+                        iconColor: const Color(0xFF9C27B0),
+                      ),
+                      SliverList(
+                        delegate: SliverChildBuilderDelegate(
+                              (_, i) => _ShowTile(
+                            show: shows[i],
+                            onTap: () => _playShow(context, player, shows[i]),
+                            onUnsave: () => player.toggleSaveShow(shows[i]),
+                          ),
+                          childCount: shows.length,
+                        ),
+                      ),
+                    ],
+
+                    const SliverToBoxAdapter(child: SizedBox(height: 100)),
+                  ],
+                ));
           },
         ),
       ),
@@ -159,8 +167,7 @@ class LibraryScreen extends StatelessWidget {
   }
 }
 
-// ── Section header ─────────────────────────────────────────────────────────────
-
+// ... Keep the remaining static widgets (_SectionHeader, _MediaTile, etc.) from library_screen.dart unchanged ...
 class _SectionHeader extends StatelessWidget {
   final String title;
   final int count;
@@ -188,8 +195,6 @@ class _SectionHeader extends StatelessWidget {
     );
   }
 }
-
-// ── Liked media tile ───────────────────────────────────────────────────────────
 
 class _MediaTile extends StatelessWidget {
   final MediaItemModel item;
@@ -228,8 +233,6 @@ class _MediaTile extends StatelessWidget {
       width: 56, height: 56, color: const Color(0xFF282828),
       child: Icon(icon, color: Colors.white30, size: 24));
 }
-
-// ── Saved podcast show tile ────────────────────────────────────────────────────
 
 class _ShowTile extends StatelessWidget {
   final PodcastShow show;
