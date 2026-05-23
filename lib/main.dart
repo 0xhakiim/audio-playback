@@ -1,11 +1,10 @@
 // lib/main.dart
-
+import 'package:audio_service/audio_service.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:provider/provider.dart';
 
-import 'services/now_playing_service.dart';
 import 'providers/player_provider.dart';
 import 'services/audio_handler.dart';
 import 'services/auth_service.dart';
@@ -15,7 +14,6 @@ import 'screens/auth_gate.dart';
 import 'screens/home_screen.dart';
 import 'screens/search_screen.dart';
 import 'screens/library_screen.dart';
-import 'screens/profile_screen.dart';
 
 import 'widgets/mini_player.dart';
 
@@ -24,15 +22,19 @@ Future<void> main() async {
   SystemChrome.setPreferredOrientations([DeviceOrientation.portraitUp]);
 
   await Firebase.initializeApp();
-  await NowPlayingNotificationService.instance.init();
+
+  // audio_service MUST be initialised before runApp
+  final audioHandler = await initAudioService() as AppAudioHandler;
+
   runApp(
     ChangeNotifierProvider(
-      create: (_) => PlayerProvider(AppAudioPlayer()),
+      create: (_) => PlayerProvider(audioHandler),
       child: const SpotifyCloneApp(),
     ),
   );
 }
 
+// ... rest of the file is unchanged
 class SpotifyCloneApp extends StatelessWidget {
   const SpotifyCloneApp({super.key});
 

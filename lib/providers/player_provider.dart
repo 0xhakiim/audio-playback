@@ -22,7 +22,7 @@ const _kIndex    = 'player_index';
 const _kPosition = 'player_position_ms';
 
 class PlayerProvider extends ChangeNotifier {
-  final AppAudioPlayer    _audio;
+  final AppAudioHandler _audio;
   final LibraryRepository _repo = LibraryRepository.instance;
 
   PlayerProvider(this._audio) {
@@ -133,7 +133,7 @@ class PlayerProvider extends ChangeNotifier {
   PlayerRepeatMode     _repeat       = PlayerRepeatMode.none;
   bool                 _shuffle      = false;
   Duration             _position     = Duration.zero;
-  Duration             _duration     = Duration.zero;
+  Duration?             _duration     = Duration.zero;
 
   bool    _sessionRestored = false;
   bool    get sessionRestored => _sessionRestored;
@@ -167,10 +167,10 @@ class PlayerProvider extends ChangeNotifier {
   bool get isRepeatOne => _repeat == PlayerRepeatMode.repeatOne;
   bool get isRepeating => _repeat != PlayerRepeatMode.none;
   Duration get position => _position;
-  Duration get duration => _duration;
+  Duration get duration => _duration!;
 
   double get progress {
-    final total = _duration.inMilliseconds;
+    final total = _duration!.inMilliseconds;
     if (total == 0) return 0.0;
     return (_position.inMilliseconds / total).clamp(0.0, 1.0);
   }
@@ -215,7 +215,7 @@ class PlayerProvider extends ChangeNotifier {
       _position        = Duration(milliseconds: posMs);
       _sessionRestored = true;
       // Load source but don't auto-play — let the user resume
-      await _audio.playUrl(_queue[_currentIndex].audioUrl);
+      await _safePlayUrl(_queue[_currentIndex]);
       await _audio.pause();
       await _audio.seek(_position);
       _updateNotification();
@@ -253,18 +253,17 @@ class PlayerProvider extends ChangeNotifier {
 
   // ── Playback actions ───────────────────────────────────────────────────────
 
-  Future<void> _safePlayUrl(String url) async {
+  Future<void> _safePlayUrl(MediaItemModel item) async {
     try {
-      await _audio.playUrl(url);
+      await _audio.playUrl(item.toJabMediaItem());
     } on TimeoutException {
       _setError('Connection timed out. Check your internet and try again.');
       rethrow;
-    } on Exception catch (e) {
+    } on Exception {
       _setError('Could not play this track. Please try again.');
       rethrow;
     }
   }
-
   Future<void> playItem(MediaItemModel item, {List<MediaItemModel>? playlist}) async {
     _sessionRestored = false;
     _playbackError   = null;
@@ -276,7 +275,7 @@ class PlayerProvider extends ChangeNotifier {
     _duration = Duration.zero;
     notifyListeners();
     try {
-      await _safePlayUrl(_queue[_currentIndex].audioUrl);
+      await _safePlayUrl(_queue[_currentIndex]);
       _saveSession();
       _updateNotification();
     } catch (_) { return; }
@@ -321,7 +320,7 @@ class PlayerProvider extends ChangeNotifier {
     _isLoading     = true;
     notifyListeners();
     try {
-      await _safePlayUrl(_queue[_currentIndex].audioUrl);
+      await _safePlayUrl(_queue[_currentIndex]);
       _saveSession();
       _updateNotification();
     } catch (_) { return; }
@@ -341,7 +340,7 @@ class PlayerProvider extends ChangeNotifier {
     _isLoading     = true;
     notifyListeners();
     try {
-      await _safePlayUrl(_queue[_currentIndex].audioUrl);
+      await _safePlayUrl(_queue[_currentIndex]);
       _saveSession();
       _updateNotification();
     } catch (_) { return; }
@@ -350,7 +349,7 @@ class PlayerProvider extends ChangeNotifier {
   }
 
   Future<void> seekTo(double progress) async => _audio.seek(
-      Duration(milliseconds: (progress * _duration.inMilliseconds).toInt()));
+      Duration(milliseconds: (progress * _duration!.inMilliseconds).toInt()));
 
   void toggleShuffle() { _shuffle = !_shuffle; notifyListeners(); }
 
@@ -404,7 +403,7 @@ class PlayerProvider extends ChangeNotifier {
       }
 
       // Hand the verified streaming endpoint down to the player handler
-      await _audio.playUrl(_queue[_currentIndex].audioUrl);
+      await _safePlayUrl(_queue[_currentIndex]);
       _updateNotification();
 
     } on TimeoutException {

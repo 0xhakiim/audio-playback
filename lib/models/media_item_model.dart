@@ -33,13 +33,14 @@ class MediaItemModel {
 
   // Convert to just_audio_background MediaItem so the notification/lock screen
   // automatically show the correct title, artist, and artwork.
+  // Change this method — id must be the URL for just_audio
   jab.MediaItem toJabMediaItem() => jab.MediaItem(
-    id:           audioUrl,   // just_audio uses the URL as the unique ID
-    title:        title,
-    artist:       subtitle,
-    artUri:       artworkUrl.isNotEmpty ? Uri.parse(artworkUrl) : null,
-    duration:     duration != Duration.zero ? duration : null,
-    extras:       {'mediaId': id, 'category': category.name},
+    id:       audioUrl,          // ← audio_service uses this as the stream URL
+    title:    title,
+    artist:   subtitle,
+    artUri:   artworkUrl.isNotEmpty ? Uri.parse(artworkUrl) : null,
+    duration: duration != Duration.zero ? duration : null,
+    extras:   {'mediaId': id, 'category': category.name},
   );
   // In media_item_model.dart
 
