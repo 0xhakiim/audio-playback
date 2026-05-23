@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:provider/provider.dart';
-
+import 'services/now_playing_service.dart';
 import 'providers/player_provider.dart';
 import 'services/audio_handler.dart';
 import 'services/auth_service.dart';
@@ -18,7 +18,7 @@ Future<void> main() async {
   SystemChrome.setPreferredOrientations([DeviceOrientation.portraitUp]);
 
   await Firebase.initializeApp();
-
+  await NowPlayingNotificationService.instance.init();
   runApp(
     ChangeNotifierProvider(
       create: (_) => PlayerProvider(AppAudioPlayer()),

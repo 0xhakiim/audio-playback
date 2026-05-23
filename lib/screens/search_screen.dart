@@ -1,4 +1,6 @@
 // lib/screens/search_screen.dart
+// ── Sawtq brand theme ──────────────────────────────────────────────────────
+
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:cached_network_image/cached_network_image.dart';
@@ -9,6 +11,17 @@ import '../services/quran_api.dart';
 import '../services/podcast_api.dart';
 import 'player_screen.dart';
 
+const _kBg      = Color(0xFF0D0B08);
+const _kSurface = Color(0xFF13100C);
+const _kCard    = Color(0xFF1C1710);
+const _kBorder  = Color(0xFF2A241C);
+const _kGold    = Color(0xFFC49A3C);
+const _kCream   = Color(0xFFF0EDE6);
+const _kMuted   = Color(0xFF9B8A6A);
+const _kDim     = Color(0xFF7A7060);
+const _kGreen   = Color(0xFF4A7C59);
+const _kPurple  = Color(0xFF8B6B9A);
+
 class SearchScreen extends StatefulWidget {
   const SearchScreen({super.key});
   @override
@@ -17,30 +30,35 @@ class SearchScreen extends StatefulWidget {
 
 class _SearchScreenState extends State<SearchScreen> {
   final _controller = TextEditingController();
+  final _focusNode  = FocusNode();
 
-  // Search state
   List<PodcastShow>    _podcastResults = [];
   List<MediaItemModel> _quranResults   = [];
-  bool  _searching  = false;
-  bool  _loading    = false;
+  bool    _searching = false;
+  bool    _loading   = false;
+  bool    _focused   = false;
   String? _error;
 
-  // All surahs cached for local filtering
   List<MediaItemModel> _allSurahs = [];
 
   @override
   void initState() {
     super.initState();
     _prefetchSurahs();
+    _focusNode.addListener(() {
+      setState(() => _focused = _focusNode.hasFocus);
+    });
   }
 
   @override
-  void dispose() { _controller.dispose(); super.dispose(); }
+  void dispose() {
+    _controller.dispose();
+    _focusNode.dispose();
+    super.dispose();
+  }
 
   Future<void> _prefetchSurahs() async {
-    try {
-      _allSurahs = await QuranApiService.fetchSurahs();
-    } catch (_) {}
+    try { _allSurahs = await QuranApiService.fetchSurahs(); } catch (_) {}
   }
 
   Future<void> _onSearch(String query) async {
@@ -52,17 +70,21 @@ class _SearchScreenState extends State<SearchScreen> {
     setState(() { _searching = true; _loading = true; _error = null; });
 
     try {
-      // Quran: local filter (no extra network call)
       final q = query.toLowerCase();
       final quranHits = _allSurahs
-          .where((s) => s.title.toLowerCase().contains(q) || s.subtitle.toLowerCase().contains(q))
+          .where((s) =>
+      s.title.toLowerCase().contains(q) ||
+          s.subtitle.toLowerCase().contains(q))
           .toList();
 
-      // Podcasts: iTunes search
       final podcastHits = await PodcastApiService.searchPodcasts(query);
 
       if (mounted) {
-        setState(() { _quranResults = quranHits; _podcastResults = podcastHits; _loading = false; });
+        setState(() {
+          _quranResults   = quranHits;
+          _podcastResults = podcastHits;
+          _loading        = false;
+        });
       }
     } catch (e) {
       if (mounted) setState(() { _error = e.toString(); _loading = false; });
@@ -81,8 +103,16 @@ class _SearchScreenState extends State<SearchScreen> {
       if (episodes.isNotEmpty && mounted) _play(episodes.first, episodes);
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('Could not load: $e'), backgroundColor: const Color(0xFF282828)));
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          content: Text('Could not load: $e',
+              style: const TextStyle(color: _kCream)),
+          backgroundColor: _kCard,
+          behavior: SnackBarBehavior.floating,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(10),
+            side: const BorderSide(color: _kBorder),
+          ),
+        ));
       }
     } finally {
       if (mounted) setState(() => _loading = false);
@@ -92,57 +122,97 @@ class _SearchScreenState extends State<SearchScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFF121212),
+      backgroundColor: _kBg,
       body: SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 16),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const SizedBox(height: 12),
-              Text('Search', style: Theme.of(context).textTheme.headlineLarge),
-              const SizedBox(height: 16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // ── Header ──────────────────────────────────────────────────
+            Padding(
+              padding: const EdgeInsets.fromLTRB(20, 16, 20, 0),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: const [
+                  Text(
+                    'Search',
+                    style: TextStyle(
+                      color: _kCream,
+                      fontSize: 26,
+                      fontWeight: FontWeight.w600,
+                      letterSpacing: -0.5,
+                    ),
+                  ),
+                  Text(
+                    'بحث',
+                    style: TextStyle(
+                        color: _kGold, fontSize: 12, letterSpacing: 2),
+                  ),
+                ],
+              ),
+            ),
 
-              // Search bar
-              Container(
-                decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(8)),
+            const SizedBox(height: 16),
+
+            // ── Search bar ───────────────────────────────────────────────
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16),
+              child: AnimatedContainer(
+                duration: const Duration(milliseconds: 200),
+                decoration: BoxDecoration(
+                  color: _kSurface,
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(
+                    color: _focused ? _kGold.withOpacity(0.6) : _kBorder,
+                    width: _focused ? 1.5 : 0.5,
+                  ),
+                ),
                 child: TextField(
                   controller: _controller,
+                  focusNode: _focusNode,
                   onChanged: _onSearch,
-                  style: const TextStyle(color: Colors.black, fontSize: 15),
+                  style: const TextStyle(color: _kCream, fontSize: 15),
+                  cursorColor: _kGold,
                   decoration: InputDecoration(
                     hintText: 'Surahs, podcasts, topics…',
-                    hintStyle: const TextStyle(color: Colors.black45, fontSize: 14),
-                    prefixIcon: const Icon(Icons.search, color: Colors.black, size: 22),
+                    hintStyle: const TextStyle(color: _kDim, fontSize: 14),
+                    prefixIcon: const Icon(Icons.search, color: _kDim, size: 22),
                     suffixIcon: _controller.text.isNotEmpty
                         ? IconButton(
-                        icon: const Icon(Icons.close, color: Colors.black54, size: 20),
-                        onPressed: () { _controller.clear(); _onSearch(''); })
+                        icon: const Icon(Icons.close, color: _kDim, size: 18),
+                        onPressed: () {
+                          _controller.clear();
+                          _onSearch('');
+                        })
                         : null,
                     border: InputBorder.none,
                     contentPadding: const EdgeInsets.symmetric(vertical: 14),
                   ),
                 ),
               ),
-              const SizedBox(height: 20),
+            ),
 
-              Expanded(
-                child: _loading
-                    ? const Center(child: CircularProgressIndicator(color: Color(0xFF1DB954)))
-                    : _error != null
-                    ? Center(child: Text(_error!, style: const TextStyle(color: Colors.white54)))
-                    : _searching
-                    ? _buildResults()
-                    : _buildCategories(),
-              ),
-            ],
-          ),
+            const SizedBox(height: 20),
+
+            Expanded(
+              child: _loading
+                  ? const Center(
+                  child: CircularProgressIndicator(
+                      color: _kGold, strokeWidth: 2))
+                  : _error != null
+                  ? Center(
+                  child: Text(_error!,
+                      style: const TextStyle(color: _kMuted)))
+                  : _searching
+                  ? _buildResults()
+                  : _buildCategories(),
+            ),
+          ],
         ),
       ),
     );
   }
 
-  // ── Search results ─────────────────────────────────────────────────────────
+  // ── Results ────────────────────────────────────────────────────────────
 
   Widget _buildResults() {
     final hasQuran   = _quranResults.isNotEmpty;
@@ -150,34 +220,42 @@ class _SearchScreenState extends State<SearchScreen> {
 
     if (!hasQuran && !hasPodcast) {
       return Center(
-        child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
-          const Icon(Icons.search_off, size: 64, color: Colors.white24),
-          const SizedBox(height: 12),
-          Text('No results for "${_controller.text}"',
-              style: const TextStyle(color: Colors.white54)),
-        ]),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            const Icon(Icons.search_off, size: 56, color: _kDim),
+            const SizedBox(height: 14),
+            Text(
+              'No results for "${_controller.text}"',
+              style: const TextStyle(color: _kMuted, fontSize: 15),
+            ),
+          ],
+        ),
       );
     }
 
     return ListView(
+      padding: const EdgeInsets.symmetric(horizontal: 16),
       children: [
         if (hasQuran) ...[
-          _ResultHeader(title: 'Quran'),
+          _ResultHeader(title: 'Quran', arabic: 'القرآن', color: _kGreen),
           ..._quranResults.map((item) => _MediaTile(
             item: item,
             onTap: () => _play(item, _quranResults),
           )),
-          const SizedBox(height: 16),
+          const SizedBox(height: 20),
         ],
         if (hasPodcast) ...[
-          _ResultHeader(title: 'Podcasts'),
+          _ResultHeader(title: 'Podcasts', arabic: 'بودكاست', color: _kPurple),
           ..._podcastResults.map((show) {
-            final saved = context.watch<PlayerProvider>().isShowSaved(show.id);
+            final saved =
+            context.watch<PlayerProvider>().isShowSaved(show.id);
             return _ShowTile(
               show: show,
               isSaved: saved,
               onTap: () => _playPodcastShow(show),
-              onSave: () => context.read<PlayerProvider>().toggleSaveShow(show),
+              onSave: () =>
+                  context.read<PlayerProvider>().toggleSaveShow(show),
             );
           }),
         ],
@@ -186,31 +264,49 @@ class _SearchScreenState extends State<SearchScreen> {
     );
   }
 
-  // ── Browse categories ──────────────────────────────────────────────────────
+  // ── Browse categories ──────────────────────────────────────────────────
 
   Widget _buildCategories() {
     const categories = [
-      _Category('Quran',       0xFF1DB954, Icons.menu_book),
-      _Category('Podcasts',    0xFF9C27B0, Icons.mic),
-      _Category('Technology',  0xFF2196F3, Icons.computer),
-      _Category('Science',     0xFF00BCD4, Icons.science),
-      _Category('History',     0xFFFF9800, Icons.history_edu),
-      _Category('Health',      0xFFE91E63, Icons.favorite),
-      _Category('Business',    0xFF607D8B, Icons.business),
-      _Category('Comedy',      0xFFFFEB3B, Icons.sentiment_very_satisfied),
-      _Category('True Crime',  0xFF795548, Icons.policy),
-      _Category('Sports',      0xFF4CAF50, Icons.sports),
+      _Category('Quran',      'القرآن',    0xFF4A7C59, Icons.menu_book_rounded),
+      _Category('Podcasts',   'بودكاست',   0xFF8B6B9A, Icons.mic_rounded),
+      _Category('Technology', 'تكنولوجيا', 0xFF2A5F8B, Icons.computer_rounded),
+      _Category('Science',    'علوم',      0xFF2A7A7A, Icons.science_rounded),
+      _Category('History',    'تاريخ',     0xFF7A5A2A, Icons.history_edu_rounded),
+      _Category('Health',     'صحة',       0xFF7A2A4A, Icons.favorite_rounded),
+      _Category('Business',   'أعمال',     0xFF4A5A6A, Icons.business_rounded),
+      _Category('Comedy',     'كوميديا',   0xFF7A6A2A, Icons.sentiment_very_satisfied_rounded),
+      _Category('True Crime', 'جريمة',     0xFF5A4A3A, Icons.policy_rounded),
+      _Category('Sports',     'رياضة',     0xFF3A6A3A, Icons.sports_rounded),
     ];
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text('Browse all', style: Theme.of(context).textTheme.titleLarge),
-        const SizedBox(height: 12),
+        Padding(
+          padding: const EdgeInsets.fromLTRB(16, 0, 16, 14),
+          child: Row(
+            children: const [
+              Text('Browse',
+                  style: TextStyle(
+                    color: _kCream,
+                    fontSize: 18,
+                    fontWeight: FontWeight.w600,
+                  )),
+              SizedBox(width: 8),
+              Text('استكشف',
+                  style: TextStyle(color: _kGold, fontSize: 12, letterSpacing: 1.5)),
+            ],
+          ),
+        ),
         Expanded(
           child: GridView.builder(
+            padding: const EdgeInsets.symmetric(horizontal: 16),
             gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                crossAxisCount: 2, childAspectRatio: 1.7, crossAxisSpacing: 8, mainAxisSpacing: 8),
+                crossAxisCount: 2,
+                childAspectRatio: 1.7,
+                crossAxisSpacing: 8,
+                mainAxisSpacing: 8),
             itemCount: categories.length,
             itemBuilder: (_, i) {
               final cat = categories[i];
@@ -221,16 +317,31 @@ class _SearchScreenState extends State<SearchScreen> {
                 },
                 child: Container(
                   decoration: BoxDecoration(
-                      color: Color(cat.color),
-                      borderRadius: BorderRadius.circular(8)),
-                  padding: const EdgeInsets.all(12),
-                  child: Row(
+                    color: Color(cat.color),
+                    borderRadius: BorderRadius.circular(10),
+                    border: Border.all(
+                        color: Colors.white.withOpacity(0.06), width: 0.5),
+                  ),
+                  padding: const EdgeInsets.all(14),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      Icon(cat.icon, color: Colors.white, size: 24),
-                      const SizedBox(width: 8),
-                      Expanded(
-                        child: Text(cat.name,
-                            style: const TextStyle(color: Colors.white, fontSize: 15, fontWeight: FontWeight.bold)),
+                      Icon(cat.icon, color: Colors.white70, size: 22),
+                      Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(cat.name,
+                              style: const TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 14,
+                                  fontWeight: FontWeight.w600)),
+                          Text(cat.arabic,
+                              style: TextStyle(
+                                  color: Colors.white.withOpacity(0.5),
+                                  fontSize: 10,
+                                  letterSpacing: 0.8)),
+                        ],
                       ),
                     ],
                   ),
@@ -244,27 +355,40 @@ class _SearchScreenState extends State<SearchScreen> {
   }
 }
 
+// ── Widgets ────────────────────────────────────────────────────────────────
+
 class _Category {
   final String name;
+  final String arabic;
   final int color;
   final IconData icon;
-  const _Category(this.name, this.color, this.icon);
+  const _Category(this.name, this.arabic, this.color, this.icon);
 }
-
-// ── Result section header ──────────────────────────────────────────────────────
 
 class _ResultHeader extends StatelessWidget {
   final String title;
-  const _ResultHeader({required this.title});
+  final String arabic;
+  final Color color;
+  const _ResultHeader(
+      {required this.title, required this.arabic, required this.color});
   @override
   Widget build(BuildContext context) => Padding(
-    padding: const EdgeInsets.only(bottom: 8),
-    child: Text(title,
-        style: const TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold)),
+    padding: const EdgeInsets.only(bottom: 10),
+    child: Row(
+      children: [
+        Text(title,
+            style: const TextStyle(
+                color: _kCream,
+                fontSize: 16,
+                fontWeight: FontWeight.w600)),
+        const SizedBox(width: 8),
+        Text(arabic,
+            style: TextStyle(
+                color: color, fontSize: 11, letterSpacing: 1.2)),
+      ],
+    ),
   );
 }
-
-// ── MediaItem list tile ────────────────────────────────────────────────────────
 
 class _MediaTile extends StatelessWidget {
   final MediaItemModel item;
@@ -274,60 +398,90 @@ class _MediaTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return ListTile(
-      contentPadding: const EdgeInsets.symmetric(horizontal: 0, vertical: 2),
-      leading: ClipRRect(
-        borderRadius: BorderRadius.circular(4),
-        child: item.artworkUrl.isNotEmpty
-            ? CachedNetworkImage(imageUrl: item.artworkUrl, width: 52, height: 52, fit: BoxFit.cover,
-            errorWidget: (_, __, ___) => _fallback())
-            : _fallback(),
+      contentPadding:
+      const EdgeInsets.symmetric(horizontal: 0, vertical: 2),
+      leading: Container(
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(6),
+          border: Border.all(color: _kBorder, width: 0.5),
+        ),
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(5),
+          child: item.artworkUrl.isNotEmpty
+              ? CachedNetworkImage(
+              imageUrl: item.artworkUrl,
+              width: 52,
+              height: 52,
+              fit: BoxFit.cover,
+              errorWidget: (_, __, ___) => _fallback())
+              : _fallback(),
+        ),
       ),
       title: Text(item.title,
-          style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w600, fontSize: 14),
-          maxLines: 1, overflow: TextOverflow.ellipsis),
+          style: const TextStyle(
+              color: _kCream, fontWeight: FontWeight.w500, fontSize: 14),
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis),
       subtitle: Text(item.subtitle,
-          style: const TextStyle(color: Color(0xFFB3B3B3), fontSize: 12),
-          maxLines: 1, overflow: TextOverflow.ellipsis),
-      trailing: const Icon(Icons.more_vert, color: Color(0xFFB3B3B3), size: 20),
+          style: const TextStyle(color: _kDim, fontSize: 12),
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis),
+      trailing: const Icon(Icons.chevron_right, color: _kDim, size: 20),
       onTap: onTap,
     );
   }
 
   Widget _fallback() => Container(
-      width: 52, height: 52, color: const Color(0xFF282828),
-      child: const Icon(Icons.music_note, size: 24, color: Colors.white30));
+      width: 52, height: 52, color: _kCard,
+      child: const Icon(Icons.music_note, size: 24, color: _kDim));
 }
-
-// ── PodcastShow list tile ──────────────────────────────────────────────────────
 
 class _ShowTile extends StatelessWidget {
   final PodcastShow show;
   final VoidCallback onTap;
   final VoidCallback onSave;
   final bool isSaved;
-  const _ShowTile({required this.show, required this.onTap, required this.onSave, required this.isSaved});
+  const _ShowTile(
+      {required this.show,
+        required this.onTap,
+        required this.onSave,
+        required this.isSaved});
 
   @override
   Widget build(BuildContext context) {
     return ListTile(
-      contentPadding: const EdgeInsets.symmetric(horizontal: 0, vertical: 2),
-      leading: ClipRRect(
-        borderRadius: BorderRadius.circular(4),
-        child: show.artworkUrl.isNotEmpty
-            ? CachedNetworkImage(imageUrl: show.artworkUrl, width: 52, height: 52, fit: BoxFit.cover,
-            errorWidget: (_, __, ___) => _fallback())
-            : _fallback(),
+      contentPadding:
+      const EdgeInsets.symmetric(horizontal: 0, vertical: 2),
+      leading: Container(
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(6),
+          border: Border.all(color: _kBorder, width: 0.5),
+        ),
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(5),
+          child: show.artworkUrl.isNotEmpty
+              ? CachedNetworkImage(
+              imageUrl: show.artworkUrl,
+              width: 52,
+              height: 52,
+              fit: BoxFit.cover,
+              errorWidget: (_, __, ___) => _fallback())
+              : _fallback(),
+        ),
       ),
       title: Text(show.name,
-          style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w600, fontSize: 14),
-          maxLines: 1, overflow: TextOverflow.ellipsis),
-      subtitle: Text('${show.author} • ${show.episodeCount} episodes',
-          style: const TextStyle(color: Color(0xFFB3B3B3), fontSize: 12),
-          maxLines: 1, overflow: TextOverflow.ellipsis),
+          style: const TextStyle(
+              color: _kCream, fontWeight: FontWeight.w500, fontSize: 14),
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis),
+      subtitle: Text('${show.author} · ${show.episodeCount} episodes',
+          style: const TextStyle(color: _kDim, fontSize: 12),
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis),
       trailing: IconButton(
         icon: Icon(
-          isSaved ? Icons.bookmark : Icons.bookmark_border,
-          color: isSaved ? const Color(0xFF1DB954) : const Color(0xFFB3B3B3),
+          isSaved ? Icons.bookmark_rounded : Icons.bookmark_border_rounded,
+          color: isSaved ? _kGold : _kDim,
           size: 22,
         ),
         onPressed: onSave,
@@ -338,6 +492,6 @@ class _ShowTile extends StatelessWidget {
   }
 
   Widget _fallback() => Container(
-      width: 52, height: 52, color: const Color(0xFF282828),
-      child: const Icon(Icons.mic, size: 24, color: Colors.white30));
+      width: 52, height: 52, color: _kCard,
+      child: const Icon(Icons.mic_rounded, size: 24, color: _kDim));
 }

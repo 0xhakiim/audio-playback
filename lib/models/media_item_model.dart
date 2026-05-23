@@ -15,7 +15,9 @@ class MediaItemModel {
   final MediaCategory category;
   final Duration      duration;
   bool                isLiked;
-  final Map<String, dynamic> extra; // category-specific fields
+  final Map<String, dynamic> extra;
+
+  String? arabicTitle; // category-specific fields
 
   MediaItemModel({
     required this.id,

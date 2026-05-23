@@ -1,9 +1,19 @@
-// login_screen.dart
+// lib/screens/login_screen.dart
+// ── Sawtq brand theme ──────────────────────────────────────────────────────
 
 import 'package:flutter/material.dart';
 import 'signup_screen.dart';
 import '../services/auth_service.dart';
 import '../services/biometric_service.dart';
+
+const _kBg      = Color(0xFF0D0B08);
+const _kSurface = Color(0xFF13100C);
+const _kCard    = Color(0xFF1C1710);
+const _kBorder  = Color(0xFF2A241C);
+const _kGold    = Color(0xFFC49A3C);
+const _kCream   = Color(0xFFF0EDE6);
+const _kMuted   = Color(0xFF9B8A6A);
+const _kDim     = Color(0xFF7A7060);
 
 class LoginPage extends StatefulWidget {
   const LoginPage({super.key});
@@ -20,6 +30,7 @@ class _LoginPageState extends State<LoginPage> {
   bool _loading      = false;
   bool _bioAvailable = false;
   bool _hasBioCreds  = false;
+  bool _showPassword = false;
 
   @override
   void initState() {
@@ -30,13 +41,10 @@ class _LoginPageState extends State<LoginPage> {
   Future<void> _checkBiometrics() async {
     final available = await bio.isAvailable;
     final hasCreds  = await bio.hasSavedCredentials;
-
-    print("BIOMETRICS DEBUG: Available = $available | Has Creds = $hasCreds");
-
     if (mounted) {
       setState(() {
         _bioAvailable = available;
-        _hasBioCreds = hasCreds;
+        _hasBioCreds  = hasCreds;
       });
     }
   }
@@ -48,21 +56,13 @@ class _LoginPageState extends State<LoginPage> {
     super.dispose();
   }
 
-  // Modified entry-point for logging in
   Future<void> login() async {
-    final email = loginEmail.text.trim();
+    final email    = loginEmail.text.trim();
     final password = loginPwd.text;
 
-    if (!service.isValidEmail(email)) {
-      showMsg('Invalid email');
-      return;
-    }
-    if (password.isEmpty) {
-      showMsg('Enter your password');
-      return;
-    }
+    if (!service.isValidEmail(email)) { showMsg('Invalid email'); return; }
+    if (password.isEmpty)             { showMsg('Enter your password'); return; }
 
-    // If biometrics are supported but not yet set up, prompt them BEFORE logging in
     if (_bioAvailable && !_hasBioCreds) {
       _offerBiometricSetup(email, password);
     } else {
@@ -70,16 +70,12 @@ class _LoginPageState extends State<LoginPage> {
     }
   }
 
-  // Handles the actual authentication call to your backend/Firebase
-  Future<void> _performLogin(String email, String password, {required bool saveBio}) async {
+  Future<void> _performLogin(String email, String password,
+      {required bool saveBio}) async {
     setState(() => _loading = true);
     final success = await service.login(email, password);
-
     if (success) {
-      if (saveBio) {
-        // We write to secure storage in the background (no UI needed)
-        await bio.saveCredentials(email, password);
-      }
+      if (saveBio) await bio.saveCredentials(email, password);
     } else {
       if (mounted) {
         setState(() => _loading = false);
@@ -88,35 +84,43 @@ class _LoginPageState extends State<LoginPage> {
     }
   }
 
-  // Displays the dialog before the reactive transition unmounts this page
   void _offerBiometricSetup(String email, String password) {
     showDialog(
       context: context,
-      barrierDismissible: false, // Force them to choose an option
+      barrierDismissible: false,
       builder: (ctx) => AlertDialog(
-        backgroundColor: const Color(0xFF1E1E1E),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        backgroundColor: _kSurface,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(20),
+          side: const BorderSide(color: _kBorder),
+        ),
         title: const Row(children: [
-          Icon(Icons.fingerprint, color: Color(0xFF1DB954), size: 28),
+          Icon(Icons.fingerprint, color: _kGold, size: 28),
           SizedBox(width: 10),
-          Flexible(child: Text('Enable fingerprint login?',
-              style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold))),
+          Flexible(
+            child: Text(
+              'Enable fingerprint login?',
+              style: TextStyle(color: _kCream, fontSize: 16, fontWeight: FontWeight.w600),
+            ),
+          ),
         ]),
-        content: const Text('Log in faster next time using your fingerprint.',
-            style: TextStyle(color: Color(0xFFB3B3B3), fontSize: 14)),
+        content: const Text(
+          'Log in faster next time using your fingerprint.',
+          style: TextStyle(color: _kMuted, fontSize: 14),
+        ),
         actions: [
           TextButton(
-              onPressed: () {
-                Navigator.pop(ctx);
-                _performLogin(email, password, saveBio: false);
-              },
-              child: const Text('Not now', style: TextStyle(color: Color(0xFFB3B3B3)))
+            onPressed: () {
+              Navigator.pop(ctx);
+              _performLogin(email, password, saveBio: false);
+            },
+            child: const Text('Not now', style: TextStyle(color: _kDim)),
           ),
           ElevatedButton(
             style: ElevatedButton.styleFrom(
-                backgroundColor: const Color(0xFF1DB954),
-                foregroundColor: Colors.black,
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20))
+              backgroundColor: _kGold,
+              foregroundColor: _kBg,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
             ),
             onPressed: () {
               Navigator.pop(ctx);
@@ -131,7 +135,8 @@ class _LoginPageState extends State<LoginPage> {
 
   Future<void> _loginWithBiometrics() async {
     setState(() => _loading = true);
-    final authenticated = await bio.authenticate(reason: 'Use your fingerprint to log in');
+    final authenticated =
+    await bio.authenticate(reason: 'Use your fingerprint to log in');
     if (!authenticated) {
       if (mounted) {
         setState(() => _loading = false);
@@ -155,97 +160,237 @@ class _LoginPageState extends State<LoginPage> {
   }
 
   void showMsg(String msg) =>
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg)));
+      ScaffoldMessenger.of(context)
+          .showSnackBar(SnackBar(
+        content: Text(msg, style: const TextStyle(color: _kCream)),
+        backgroundColor: _kCard,
+        behavior: SnackBarBehavior.floating,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(10),
+          side: const BorderSide(color: _kBorder),
+        ),
+      ));
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFF121212),
-      appBar: AppBar(
-        backgroundColor: const Color(0xFF121212),
-        title: const Text('Login', style: TextStyle(color: Colors.white)),
-        iconTheme: const IconThemeData(color: Colors.white),
-      ),
-      body: Padding(
-        padding: const EdgeInsets.all(24),
-        child: Column(
-          children: [
-            const SizedBox(height: 32),
-            TextField(
+      backgroundColor: _kBg,
+      body: SafeArea(
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.symmetric(horizontal: 28),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const SizedBox(height: 48),
+
+              // ── Logo mark ──────────────────────────────────────────────
+              Center(
+                child: Column(
+                  children: [
+                    Image.asset(
+                      'assets/images/sawtq_logo.png',
+                      width: 88,
+                      height: 88,
+                    ),
+                    const SizedBox(height: 16),
+                    const Text(
+                      'Sawtq',
+                      style: TextStyle(
+                        color: _kCream,
+                        fontSize: 32,
+                        fontWeight: FontWeight.w300,
+                        letterSpacing: -1,
+                      ),
+                    ),
+                    const Text(
+                      'صوتق',
+                      style: TextStyle(color: _kGold, fontSize: 16, letterSpacing: 2),
+                    ),
+                  ],
+                ),
+              ),
+
+              const SizedBox(height: 48),
+
+              const Text(
+                'Welcome back',
+                style: TextStyle(
+                  color: _kCream,
+                  fontSize: 26,
+                  fontWeight: FontWeight.w600,
+                  letterSpacing: -0.5,
+                ),
+              ),
+              const SizedBox(height: 6),
+              const Text(
+                'Sign in to continue listening',
+                style: TextStyle(color: _kMuted, fontSize: 15),
+              ),
+
+              const SizedBox(height: 32),
+
+              // ── Email ──────────────────────────────────────────────────
+              _FieldLabel(label: 'Email'),
+              const SizedBox(height: 8),
+              TextField(
                 controller: loginEmail,
                 keyboardType: TextInputType.emailAddress,
-                style: const TextStyle(color: Colors.white),
-                decoration: _inputDec('Email')
-            ),
-            const SizedBox(height: 16),
-            TextField(
+                style: const TextStyle(color: _kCream, fontSize: 15),
+                decoration: _inputDec(
+                  hint: 'you@example.com',
+                  icon: Icons.mail_outline,
+                ),
+              ),
+
+              const SizedBox(height: 20),
+
+              // ── Password ───────────────────────────────────────────────
+              _FieldLabel(label: 'Password'),
+              const SizedBox(height: 8),
+              TextField(
                 controller: loginPwd,
-                obscureText: true,
-                style: const TextStyle(color: Colors.white),
-                decoration: _inputDec('Password')
-            ),
-            const SizedBox(height: 28),
-            SizedBox(
-              width: double.infinity, height: 48,
-              child: ElevatedButton(
-                onPressed: _loading ? null : login,
-                style: ElevatedButton.styleFrom(
-                    backgroundColor: const Color(0xFF1DB954),
-                    foregroundColor: Colors.black,
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24))
-                ),
-                child: _loading
-                    ? const SizedBox(width: 20, height: 20,
-                    child: CircularProgressIndicator(strokeWidth: 2, color: Colors.black))
-                    : const Text('Login', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
-              ),
-            ),
-            if (_bioAvailable && _hasBioCreds) ...[
-              const SizedBox(height: 16),
-              const Row(children: [
-                Expanded(child: Divider(color: Colors.white24)),
-                Padding(
-                    padding: EdgeInsets.symmetric(horizontal: 12),
-                    child: Text('or', style: TextStyle(color: Colors.white38, fontSize: 13))
-                ),
-                Expanded(child: Divider(color: Colors.white24)),
-              ]),
-              const SizedBox(height: 16),
-              SizedBox(
-                width: double.infinity, height: 48,
-                child: OutlinedButton.icon(
-                  onPressed: _loading ? null : _loginWithBiometrics,
-                  style: OutlinedButton.styleFrom(
-                      foregroundColor: Colors.white,
-                      side: const BorderSide(color: Colors.white24),
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24))
+                obscureText: !_showPassword,
+                style: const TextStyle(color: _kCream, fontSize: 15),
+                decoration: _inputDec(
+                  hint: '••••••••',
+                  icon: Icons.lock_outline,
+                  suffix: IconButton(
+                    icon: Icon(
+                      _showPassword ? Icons.visibility_off : Icons.visibility,
+                      color: _kDim,
+                      size: 20,
+                    ),
+                    onPressed: () => setState(() => _showPassword = !_showPassword),
                   ),
-                  icon: const Icon(Icons.fingerprint, size: 24, color: Color(0xFF1DB954)),
-                  label: const Text('Login with Fingerprint',
-                      style: TextStyle(fontWeight: FontWeight.w600, fontSize: 15)),
                 ),
               ),
-            ],
-            const SizedBox(height: 16),
-            Row(mainAxisAlignment: MainAxisAlignment.center, children: [
-              const Text("Don't have an account?", style: TextStyle(color: Colors.white70)),
-              TextButton(
-                onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (context) => const SignupPage())),
-                child: const Text('Sign up', style: TextStyle(color: Color(0xFF1DB954))),
+
+              const SizedBox(height: 32),
+
+              // ── Login button ───────────────────────────────────────────
+              SizedBox(
+                width: double.infinity,
+                height: 52,
+                child: ElevatedButton(
+                  onPressed: _loading ? null : login,
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: _kGold,
+                    foregroundColor: _kBg,
+                    disabledBackgroundColor: _kGold.withOpacity(0.4),
+                    shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(26)),
+                    elevation: 0,
+                  ),
+                  child: _loading
+                      ? const SizedBox(
+                      width: 20,
+                      height: 20,
+                      child: CircularProgressIndicator(
+                          strokeWidth: 2, color: _kBg))
+                      : const Text(
+                    'Sign in',
+                    style: TextStyle(
+                        fontWeight: FontWeight.w600, fontSize: 16),
+                  ),
+                ),
               ),
-            ]),
-          ],
+
+              // ── Biometrics ─────────────────────────────────────────────
+              if (_bioAvailable && _hasBioCreds) ...[
+                const SizedBox(height: 20),
+                Row(children: [
+                  Expanded(child: Divider(color: _kBorder)),
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 14),
+                    child: Text('or',
+                        style: TextStyle(color: _kDim, fontSize: 13)),
+                  ),
+                  Expanded(child: Divider(color: _kBorder)),
+                ]),
+                const SizedBox(height: 20),
+                SizedBox(
+                  width: double.infinity,
+                  height: 52,
+                  child: OutlinedButton.icon(
+                    onPressed: _loading ? null : _loginWithBiometrics,
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: _kCream,
+                      side: const BorderSide(color: _kBorder),
+                      shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(26)),
+                    ),
+                    icon: const Icon(Icons.fingerprint, size: 24, color: _kGold),
+                    label: const Text(
+                      'Sign in with Fingerprint',
+                      style: TextStyle(fontWeight: FontWeight.w500, fontSize: 15),
+                    ),
+                  ),
+                ),
+              ],
+
+              const SizedBox(height: 24),
+
+              // ── Sign up link ───────────────────────────────────────────
+              Center(
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    const Text("Don't have an account?",
+                        style: TextStyle(color: _kMuted, fontSize: 14)),
+                    TextButton(
+                      onPressed: () => Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                            builder: (context) => const SignupPage()),
+                      ),
+                      style: TextButton.styleFrom(foregroundColor: _kGold),
+                      child: const Text('Sign up',
+                          style: TextStyle(fontWeight: FontWeight.w600)),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 32),
+            ],
+          ),
         ),
       ),
     );
   }
 
-  InputDecoration _inputDec(String label) => InputDecoration(
-    labelText: label,
-    labelStyle: const TextStyle(color: Colors.white54),
-    enabledBorder: const OutlineInputBorder(borderSide: BorderSide(color: Colors.white24)),
-    focusedBorder: const OutlineInputBorder(borderSide: BorderSide(color: Color(0xFF1DB954))),
-    filled: true,
-    fillColor: const Color(0xFF1E1E1E),
+  InputDecoration _inputDec(
+      {required String hint, required IconData icon, Widget? suffix}) =>
+      InputDecoration(
+        hintText: hint,
+        hintStyle: const TextStyle(color: _kDim, fontSize: 14),
+        prefixIcon: Icon(icon, color: _kDim, size: 20),
+        suffixIcon: suffix,
+        enabledBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12),
+          borderSide: const BorderSide(color: _kBorder),
+        ),
+        focusedBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12),
+          borderSide: const BorderSide(color: _kGold, width: 1.5),
+        ),
+        filled: true,
+        fillColor: _kSurface,
+        contentPadding:
+        const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+      );
+}
+
+class _FieldLabel extends StatelessWidget {
+  final String label;
+  const _FieldLabel({required this.label});
+  @override
+  Widget build(BuildContext context) => Text(
+    label,
+    style: const TextStyle(
+      color: _kMuted,
+      fontSize: 12,
+      letterSpacing: 0.8,
+      fontWeight: FontWeight.w500,
+    ),
   );
 }
