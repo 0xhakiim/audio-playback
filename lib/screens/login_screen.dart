@@ -1,10 +1,8 @@
 // lib/screens/login_screen.dart
-// ── Sawtq brand theme ──────────────────────────────────────────────────────
 
 import 'package:flutter/material.dart';
 import 'signup_screen.dart';
 import '../services/auth_service.dart';
-import '../services/biometric_service.dart';
 
 const _kBg      = Color(0xFF0D0B08);
 const _kSurface = Color(0xFF13100C);
@@ -25,29 +23,9 @@ class _LoginPageState extends State<LoginPage> {
   final loginEmail = TextEditingController();
   final loginPwd   = TextEditingController();
   final service    = AuthService();
-  final bio        = BiometricService.instance;
 
   bool _loading      = false;
-  bool _bioAvailable = false;
-  bool _hasBioCreds  = false;
   bool _showPassword = false;
-
-  @override
-  void initState() {
-    super.initState();
-    _checkBiometrics();
-  }
-
-  Future<void> _checkBiometrics() async {
-    final available = await bio.isAvailable;
-    final hasCreds  = await bio.hasSavedCredentials;
-    if (mounted) {
-      setState(() {
-        _bioAvailable = available;
-        _hasBioCreds  = hasCreds;
-      });
-    }
-  }
 
   @override
   void dispose() {
@@ -63,99 +41,17 @@ class _LoginPageState extends State<LoginPage> {
     if (!service.isValidEmail(email)) { showMsg('Invalid email'); return; }
     if (password.isEmpty)             { showMsg('Enter your password'); return; }
 
-    if (_bioAvailable && !_hasBioCreds) {
-      _offerBiometricSetup(email, password);
-    } else {
-      await _performLogin(email, password, saveBio: false);
-    }
+    await _performLogin(email, password);
   }
 
-  Future<void> _performLogin(String email, String password,
-      {required bool saveBio}) async {
+  Future<void> _performLogin(String email, String password) async {
     setState(() => _loading = true);
     final success = await service.login(email, password);
-    if (success) {
-      if (saveBio) await bio.saveCredentials(email, password);
-    } else {
+    if (!success) {
       if (mounted) {
         setState(() => _loading = false);
         showMsg('Wrong email or password');
       }
-    }
-  }
-
-  void _offerBiometricSetup(String email, String password) {
-    showDialog(
-      context: context,
-      barrierDismissible: false,
-      builder: (ctx) => AlertDialog(
-        backgroundColor: _kSurface,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(20),
-          side: const BorderSide(color: _kBorder),
-        ),
-        title: const Row(children: [
-          Icon(Icons.fingerprint, color: _kGold, size: 28),
-          SizedBox(width: 10),
-          Flexible(
-            child: Text(
-              'Enable fingerprint login?',
-              style: TextStyle(color: _kCream, fontSize: 16, fontWeight: FontWeight.w600),
-            ),
-          ),
-        ]),
-        content: const Text(
-          'Log in faster next time using your fingerprint.',
-          style: TextStyle(color: _kMuted, fontSize: 14),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () {
-              Navigator.pop(ctx);
-              _performLogin(email, password, saveBio: false);
-            },
-            child: const Text('Not now', style: TextStyle(color: _kDim)),
-          ),
-          ElevatedButton(
-            style: ElevatedButton.styleFrom(
-              backgroundColor: _kGold,
-              foregroundColor: _kBg,
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-            ),
-            onPressed: () {
-              Navigator.pop(ctx);
-              _performLogin(email, password, saveBio: true);
-            },
-            child: const Text('Enable', style: TextStyle(fontWeight: FontWeight.bold)),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Future<void> _loginWithBiometrics() async {
-    setState(() => _loading = true);
-    final authenticated =
-    await bio.authenticate(reason: 'Use your fingerprint to log in');
-    if (!authenticated) {
-      if (mounted) {
-        setState(() => _loading = false);
-        showMsg('Fingerprint not recognised');
-      }
-      return;
-    }
-    final creds = await bio.getCredentials();
-    if (creds == null) {
-      if (mounted) {
-        setState(() => _loading = false);
-        showMsg('No saved credentials — log in with password first');
-      }
-      return;
-    }
-    final success = await service.login(creds.email, creds.password);
-    if (mounted) {
-      setState(() => _loading = false);
-      if (!success) showMsg('Biometric login failed — please use your password');
     }
   }
 
@@ -294,39 +190,6 @@ class _LoginPageState extends State<LoginPage> {
                   ),
                 ),
               ),
-
-              // ── Biometrics ─────────────────────────────────────────────
-              if (_bioAvailable && _hasBioCreds) ...[
-                const SizedBox(height: 20),
-                Row(children: [
-                  Expanded(child: Divider(color: _kBorder)),
-                  Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 14),
-                    child: Text('or',
-                        style: TextStyle(color: _kDim, fontSize: 13)),
-                  ),
-                  Expanded(child: Divider(color: _kBorder)),
-                ]),
-                const SizedBox(height: 20),
-                SizedBox(
-                  width: double.infinity,
-                  height: 52,
-                  child: OutlinedButton.icon(
-                    onPressed: _loading ? null : _loginWithBiometrics,
-                    style: OutlinedButton.styleFrom(
-                      foregroundColor: _kCream,
-                      side: const BorderSide(color: _kBorder),
-                      shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(26)),
-                    ),
-                    icon: const Icon(Icons.fingerprint, size: 24, color: _kGold),
-                    label: const Text(
-                      'Sign in with Fingerprint',
-                      style: TextStyle(fontWeight: FontWeight.w500, fontSize: 15),
-                    ),
-                  ),
-                ),
-              ],
 
               const SizedBox(height: 24),
 

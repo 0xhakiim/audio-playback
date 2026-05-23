@@ -7,6 +7,10 @@ import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:provider/provider.dart';
+
+import '../providers/player_provider.dart';
+import '../services/now_playing_service.dart';
 
 const _kBg      = Color(0xFF0D0B08);
 const _kSurface = Color(0xFF13100C);
@@ -130,8 +134,26 @@ class _ProfileScreenState extends State<ProfileScreen> {
         ],
       ),
     );
+
     if (confirmed == true) {
+      // 1. Pause audio playback
+      try {
+        final player = Provider.of<PlayerProvider>(context, listen: false);
+        await player.pause();
+      } catch (e) {
+        debugPrint("Could not stop audio playback: $e");
+      }
+
+      // 2. Clear out any remaining active notifications
+      await NowPlayingNotificationService.instance.dismiss();
+
+      // 3. Perform Firebase sign out
       await FirebaseAuth.instance.signOut();
+
+      // 4. Dismiss this profile screen to return cleanly to the login screen
+      if (mounted) {
+        Navigator.of(context).pop();
+      }
     }
   }
 
