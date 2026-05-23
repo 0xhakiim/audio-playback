@@ -36,7 +36,10 @@ class PlayerProvider extends ChangeNotifier {
       _throttledSaveSession();
       notifyListeners();
     });
-    _audio.durationStream.listen((dur) { _duration = dur; notifyListeners(); });
+    _audio.durationStream.listen((dur) {
+      _duration = dur;
+      notifyListeners();
+    });
     _audio.completionStream.listen((_) => _onTrackComplete());
 
     _repo.onSyncComplete((data) {
@@ -170,9 +173,9 @@ class PlayerProvider extends ChangeNotifier {
   Duration get duration => _duration!;
 
   double get progress {
-    final total = _duration!.inMilliseconds;
+    final total = _duration?.inMilliseconds ?? 0;
     if (total == 0) return 0.0;
-    return (_position.inMilliseconds / total).clamp(0.0, 1.0);
+    return ((_position.inMilliseconds) / total).clamp(0.0, 1.0);
   }
 
   bool get canSkipNext => _currentIndex < _queue.length - 1 || isRepeating;
