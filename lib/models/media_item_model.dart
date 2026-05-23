@@ -39,4 +39,23 @@ class MediaItemModel {
     duration:     duration != Duration.zero ? duration : null,
     extras:       {'mediaId': id, 'category': category.name},
   );
+  // In media_item_model.dart
+
+  Map<String, dynamic> toJson() => {
+    'id':         id,
+    'title':      title,
+    'subtitle':   subtitle,
+    'audioUrl':   audioUrl,
+    'artworkUrl': artworkUrl,
+    'isLiked':    isLiked,
+  };
+
+  factory MediaItemModel.fromJson(Map<String, dynamic> json) => MediaItemModel(
+    id:         json['id']         as String,
+    title:      json['title']      as String,
+    subtitle:   json['subtitle']   as String,
+    audioUrl:   json['audioUrl']   as String,
+    artworkUrl: json['artworkUrl'] as String,
+    isLiked:    json['isLiked']    as bool? ?? false, category: MediaCategory.quran,
+  );
 }
