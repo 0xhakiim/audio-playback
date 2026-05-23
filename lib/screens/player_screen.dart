@@ -198,6 +198,43 @@ class _PlayerScreenState extends State<PlayerScreen> {
                     children: [
                       _buildTopBar(context),
 
+                      // ── Error banner ──────────────────────────────────────────
+                      if (player.playbackError != null)
+                        Container(
+                          margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+                          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFF7F1D1D).withOpacity(0.25),
+                            border: Border.all(color: const Color(0xFF991B1B).withOpacity(0.5)),
+                            borderRadius: BorderRadius.circular(10),
+                          ),
+                          child: Row(
+                            children: [
+                              const Icon(Icons.wifi_off_rounded, color: Color(0xFFFC8181), size: 18),
+                              const SizedBox(width: 10),
+                              Expanded(
+                                child: Text(
+                                  player.playbackError!,
+                                  style: const TextStyle(color: Color(0xFFFC8181), fontSize: 13),
+                                ),
+                              ),
+                              GestureDetector(
+                                onTap: player.clearError,
+                                child: const Icon(Icons.close, color: _kDim, size: 16),
+                              ),
+                            ],
+                          ),
+                        ),
+
+                      // ── Loading bar ────────────────────────────────────────────
+                      if (player.isLoading)
+                        const LinearProgressIndicator(
+                          backgroundColor: _kBorder,
+                          valueColor: AlwaysStoppedAnimation<Color>(_kGold),
+                          minHeight: 2,
+                        ),
+
+
                       // ── Circular album art with rings ──────────────────────────
                       Padding(
                         padding: const EdgeInsets.symmetric(horizontal: 40, vertical: 8),
@@ -586,7 +623,12 @@ class _CircularArtworkState extends State<_CircularArtwork>
   Widget _artPlaceholder(double diameter) => Container(
     color: _kCard,
     child: Center(
-      child: Icon(Icons.graphic_eq, size: diameter * 0.22, color: _kGold),
+      child: Image.asset(
+        'assets/images/sawtq_logo.png',
+        width: diameter * 0.55,
+        height: diameter * 0.55,
+        fit: BoxFit.contain,
+      ),
     ),
   );
 }

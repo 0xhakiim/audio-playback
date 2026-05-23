@@ -60,6 +60,13 @@ dev_dependencies:
   # rules and activating additional ones.
   flutter_lints: ^6.0.0
 
+flutter_launcher_icons:
+  android: true
+  ios: true
+  image_path: "assets/images/sawtq_logo.png"
+  min_sdk_android: 21
+  adaptive_icon_background: "#0D0B08"   # your app's dark background color
+  adaptive_icon_foreground: "assets/images/sawtq_logo.png"
 # For information on the generic Dart part of this file, see the
 # following page: https://dart.dev/tools/pub/pubspec
 
@@ -101,8 +108,3 @@ flutter:
   #
   # For details regarding fonts from package dependencies,
   # see https://flutter.dev/to/font-from-package
-
-flutter_launcher_icons:
-  android: true
-  ios: true
-  image_path: "assets/images/sawtq_logo.png"

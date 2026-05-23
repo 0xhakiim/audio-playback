@@ -25,7 +25,7 @@ class NowPlayingNotificationService {
 
   // ── Call once at app startup (before runApp or inside main) ──────────────
   Future<void> init() async {
-    const android = AndroidInitializationSettings('@drawable/ic_notification');
+    const android = AndroidInitializationSettings('@mipmap/ic_launcher');
     const iOS     = DarwinInitializationSettings(
       requestAlertPermission: true,
       requestSoundPermission: false,

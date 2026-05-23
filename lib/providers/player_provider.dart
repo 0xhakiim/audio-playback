@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 
 import 'package:flutter/foundation.dart';
@@ -8,7 +9,7 @@ import '../models/media_item_model.dart';
 import '../services/audio_handler.dart';
 import '../services/library_repository.dart';
 import '../services/podcast_api.dart';
-
+import '../services/quran_api.dart';
 enum PlayerRepeatMode { none, repeatAll, repeatOne }
 
 // Keys used by SharedPreferences
@@ -19,19 +20,13 @@ const _kPosition = 'player_position_ms';
 class PlayerProvider extends ChangeNotifier {
   final AppAudioPlayer    _audio;
   final LibraryRepository _repo = LibraryRepository.instance;
-  Future<void> jumpTo(int index) async {
-    if (index < 0 || index >= _queue.length) return;
-    _currentIndex = index;
-    _position = Duration.zero;
-    _duration = Duration.zero;
-    await _audio.playUrl(_queue[_currentIndex].audioUrl);
-    notifyListeners();
-  }
+
+
   PlayerProvider(this._audio) {
     _audio.playerStateStream.listen((_) => notifyListeners());
     _audio.positionStream.listen((pos) {
       _position = pos;
-      _throttledSaveSession(); // persist position as playback advances
+      _throttledSaveSession();
       notifyListeners();
     });
     _audio.durationStream.listen((dur) { _duration = dur; notifyListeners(); });
@@ -52,8 +47,8 @@ class PlayerProvider extends ChangeNotifier {
   List<MediaItemModel> get likedItems    => List.unmodifiable(_likedItems);
   List<PodcastShow>    get savedShows    => List.unmodifiable(_savedShows);
   bool                 get libraryLoaded => _libraryLoaded;
-  List<MediaItemModel> get queue => List.unmodifiable(_queue);
-  int get currentIndex => _currentIndex;
+  List<MediaItemModel> get queue         => List.unmodifiable(_queue);
+  int                  get currentIndex  => _currentIndex;
   bool isLiked(String id)     => _likedItems.any((e) => e.id == id);
   bool isShowSaved(String id) => _savedShows.any((s) => s.id == id);
 
@@ -65,20 +60,20 @@ class PlayerProvider extends ChangeNotifier {
     _savedShows    = List.of(data.savedShows);
     _libraryLoaded = true;
     notifyListeners();
-
-    // Restore last session after library is ready
     await _restoreSession();
   }
 
   void clearLibrary() {
-    _likedItems    = [];
-    _savedShows    = [];
-    _libraryLoaded = false;
-    _clearSession();          // wipe saved session on logout
-    _queue        = [];
-    _currentIndex = -1;
-    _position     = Duration.zero;
-    _duration     = Duration.zero;
+    _likedItems      = [];
+    _savedShows      = [];
+    _libraryLoaded   = false;
+    _playbackError   = null;
+    _isLoading       = false;
+    _clearSession();
+    _queue           = [];
+    _currentIndex    = -1;
+    _position        = Duration.zero;
+    _duration        = Duration.zero;
     _sessionRestored = false;
     notifyListeners();
   }
@@ -117,11 +112,27 @@ class PlayerProvider extends ChangeNotifier {
   Duration             _position     = Duration.zero;
   Duration             _duration     = Duration.zero;
 
-  /// True once a prior session has been loaded but not yet played by the user.
-  /// Used to show a "Resume" prompt in the UI.
-  bool _sessionRestored = false;
-  bool get sessionRestored => _sessionRestored;
+  bool    _sessionRestored = false;
+  bool    get sessionRestored => _sessionRestored;
 
+  // ── Error / loading state ──────────────────────────────────────────────────
+  String? _playbackError;
+  String? get playbackError => _playbackError;
+  bool    _isLoading = false;
+  bool    get isLoading => _isLoading;
+
+  void _setError(String msg) {
+    _playbackError = msg;
+    _isLoading     = false;
+    notifyListeners();
+  }
+
+  void clearError() {
+    _playbackError = null;
+    notifyListeners();
+  }
+
+  // ── Derived getters ────────────────────────────────────────────────────────
   MediaItemModel? get currentItem =>
       _currentIndex >= 0 && _currentIndex < _queue.length
           ? _queue[_currentIndex] : null;
@@ -145,8 +156,6 @@ class PlayerProvider extends ChangeNotifier {
   bool get canSkipPrev => _currentIndex > 0 || isRepeating;
 
   // ── Session persistence ────────────────────────────────────────────────────
-
-  // Throttle: only write to prefs at most once every 5 seconds while playing
   DateTime _lastSave = DateTime.fromMillisecondsSinceEpoch(0);
 
   void _throttledSaveSession() {
@@ -160,9 +169,7 @@ class PlayerProvider extends ChangeNotifier {
   Future<void> _saveSession() async {
     if (_queue.isEmpty || _currentIndex < 0) return;
     final prefs = await SharedPreferences.getInstance();
-    final queueJson = jsonEncode(
-      _queue.map((e) => e.toJson()).toList(),
-    );
+    final queueJson = jsonEncode(_queue.map((e) => e.toJson()).toList());
     await prefs.setString(_kQueue, queueJson);
     await prefs.setInt(_kIndex, _currentIndex);
     await prefs.setInt(_kPosition, _position.inMilliseconds);
@@ -172,30 +179,24 @@ class PlayerProvider extends ChangeNotifier {
     final prefs = await SharedPreferences.getInstance();
     final queueJson = prefs.getString(_kQueue);
     if (queueJson == null) return;
-
     try {
       final List<dynamic> decoded = jsonDecode(queueJson) as List;
       final queue = decoded
           .map((e) => MediaItemModel.fromJson(e as Map<String, dynamic>))
           .toList();
       if (queue.isEmpty) return;
-
-      final index    = (prefs.getInt(_kIndex) ?? 0).clamp(0, queue.length - 1);
-      final posMs    = prefs.getInt(_kPosition) ?? 0;
-
-      _queue        = queue;
-      _currentIndex = index;
-      _position     = Duration(milliseconds: posMs);
+      final index = (prefs.getInt(_kIndex) ?? 0).clamp(0, queue.length - 1);
+      final posMs = prefs.getInt(_kPosition) ?? 0;
+      _queue           = queue;
+      _currentIndex    = index;
+      _position        = Duration(milliseconds: posMs);
       _sessionRestored = true;
-
-      // Load the audio source and seek — but do NOT auto-play.
+      // Load source but don't auto-play — let the user resume
       await _audio.playUrl(_queue[_currentIndex].audioUrl);
       await _audio.pause();
       await _audio.seek(_position);
-
       notifyListeners();
     } catch (_) {
-      // Corrupt data — ignore and start fresh
       await _clearSession();
     }
   }
@@ -207,7 +208,6 @@ class PlayerProvider extends ChangeNotifier {
     await prefs.remove(_kPosition);
   }
 
-  /// Called from the UI "Resume" banner to actually start playback.
   Future<void> resumeSession() async {
     _sessionRestored = false;
     notifyListeners();
@@ -215,7 +215,6 @@ class PlayerProvider extends ChangeNotifier {
     await _audio.play();
   }
 
-  /// Called from the UI "Dismiss" action on the banner.
   void dismissRestoredSession() {
     _sessionRestored = false;
     _queue        = [];
@@ -228,22 +227,40 @@ class PlayerProvider extends ChangeNotifier {
 
   // ── Playback actions ───────────────────────────────────────────────────────
 
+  Future<void> _safePlayUrl(String url) async {
+    try {
+      await _audio.playUrl(url);
+    } on TimeoutException {
+      _setError('Connection timed out. Check your internet and try again.');
+      rethrow;
+    } on Exception catch (e) {
+      _setError('Could not play this track. Please try again.');
+      rethrow;
+    }
+  }
+
   Future<void> playItem(MediaItemModel item, {List<MediaItemModel>? playlist}) async {
     _sessionRestored = false;
+    _playbackError   = null;
+    _isLoading       = true;
     _queue        = playlist ?? [item];
     _currentIndex = _queue.indexWhere((e) => e.id == item.id);
     if (_currentIndex == -1) { _queue.insert(0, item); _currentIndex = 0; }
     _position = Duration.zero;
     _duration = Duration.zero;
-    await _audio.playUrl(_queue[_currentIndex].audioUrl);
-    _saveSession();
+    notifyListeners();
+    try {
+      await _safePlayUrl(_queue[_currentIndex].audioUrl);
+      _saveSession();
+    } catch (_) { return; }
+    _isLoading = false;
     notifyListeners();
   }
 
   Future<void> togglePlayPause() async {
     if (_audio.isPlaying) {
       await _audio.pause();
-      _saveSession(); // save exact position when user pauses
+      _saveSession();
     } else {
       if (_sessionRestored) _sessionRestored = false;
       await _audio.play();
@@ -264,10 +281,16 @@ class PlayerProvider extends ChangeNotifier {
     } else if (_repeat == PlayerRepeatMode.repeatAll) {
       next = 0;
     } else return;
-    _currentIndex = next;
-    _position = Duration.zero;
-    await _audio.playUrl(_queue[_currentIndex].audioUrl);
-    _saveSession();
+    _currentIndex  = next;
+    _position      = Duration.zero;
+    _playbackError = null;
+    _isLoading     = true;
+    notifyListeners();
+    try {
+      await _safePlayUrl(_queue[_currentIndex].audioUrl);
+      _saveSession();
+    } catch (_) { return; }
+    _isLoading = false;
     notifyListeners();
   }
 
@@ -278,9 +301,15 @@ class PlayerProvider extends ChangeNotifier {
     } else if (_repeat == PlayerRepeatMode.repeatAll) {
       _currentIndex = _queue.length - 1;
     } else { await _audio.seek(Duration.zero); return; }
-    _position = Duration.zero;
-    await _audio.playUrl(_queue[_currentIndex].audioUrl);
-    _saveSession();
+    _position      = Duration.zero;
+    _playbackError = null;
+    _isLoading     = true;
+    notifyListeners();
+    try {
+      await _safePlayUrl(_queue[_currentIndex].audioUrl);
+      _saveSession();
+    } catch (_) { return; }
+    _isLoading = false;
     notifyListeners();
   }
 
@@ -299,10 +328,55 @@ class PlayerProvider extends ChangeNotifier {
   }
 
   void _onTrackComplete() {
-    _clearSession(); // completed naturally — don't resume this track next time
+    _clearSession();
     skipNext();
   }
 
   @override
   void dispose() { _audio.dispose(); super.dispose(); }
+  Future<void> jumpTo(int index) async {
+    if (index < 0 || index >= _queue.length) return;
+    _currentIndex = index;
+    _position = Duration.zero;
+    _duration = Duration.zero;
+    _playbackError = null;
+    _isLoading = true;
+    notifyListeners();
+
+    try {
+      var currentItem = _queue[_currentIndex];
+
+      // ── NEW CRITICAL INTERCEPT FOR QURAN API ──
+      // If the item doesn't have an audioUrl yet, dynamically pull it on-the-fly
+      if (currentItem.category == MediaCategory.quran && currentItem.audioUrl.isEmpty) {
+        final int surahNumber = currentItem.extra['number'] ?? 1;
+
+        // Fetch streaming URL dynamically from Quran.com v4
+        final dynamicUrl = await QuranApiService.fetchSurahAudioUrl(surahNumber);
+
+        // Update the item inside the active playlist queue
+        _queue[_currentIndex] = MediaItemModel(
+          id: currentItem.id,
+          title: currentItem.title,
+          subtitle: currentItem.subtitle,
+          audioUrl: dynamicUrl,
+          artworkUrl: currentItem.artworkUrl,
+          category: currentItem.category,
+          extra: currentItem.extra,
+        )..arabicTitle = currentItem.arabicTitle;
+      }
+
+      // Hand the verified streaming endpoint down to the player handler
+      await _audio.playUrl(_queue[_currentIndex].audioUrl);
+
+    } on TimeoutException {
+      _setError('Connection timed out. Check your internet and try again.');
+      return;
+    } catch (e) {
+      _setError('Could not play this track. Please try again.');
+      return;
+    }
+    _isLoading = false;
+    notifyListeners();
+  }
 }
