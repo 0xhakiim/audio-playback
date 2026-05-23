@@ -4,7 +4,6 @@ import 'dart:async';
 import 'dart:convert';
 
 import 'package:flutter/foundation.dart';
-import 'package:audioplayers/audioplayers.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../models/media_item_model.dart';
@@ -12,23 +11,19 @@ import '../services/audio_handler.dart';
 import '../services/library_repository.dart';
 import '../services/podcast_api.dart';
 import '../services/quran_api.dart';
-import '../services/now_playing_service.dart'; // Added the notification service import
 
 enum PlayerRepeatMode { none, repeatAll, repeatOne }
 
-// Keys used by SharedPreferences
 const _kQueue    = 'player_queue';
 const _kIndex    = 'player_index';
 const _kPosition = 'player_position_ms';
 
 class PlayerProvider extends ChangeNotifier {
-  final AppAudioHandler _audio;
+  final AppAudioHandler   _audio;
   final LibraryRepository _repo = LibraryRepository.instance;
 
   PlayerProvider(this._audio) {
-    // Listen to player state changes and update the notification instantly
     _audio.playerStateStream.listen((_) {
-      _updateNotification();
       notifyListeners();
     });
     _audio.positionStream.listen((pos) {
@@ -47,21 +42,6 @@ class PlayerProvider extends ChangeNotifier {
       _savedShows = List.of(data.savedShows);
       notifyListeners();
     });
-  }
-
-  // Helper method to automatically update the Android notification card
-  void _updateNotification() {
-    final item = currentItem;
-    if (item != null) {
-      NowPlayingNotificationService.instance.show(
-        title: item.title,
-        subtitle: item.subtitle,
-        arabicTitle: item.arabicTitle,
-        isPlaying: isPlaying,
-      );
-    } else {
-      NowPlayingNotificationService.instance.dismiss();
-    }
   }
 
   // ── Library state ──────────────────────────────────────────────────────────
@@ -98,9 +78,8 @@ class PlayerProvider extends ChangeNotifier {
     _queue           = [];
     _currentIndex    = -1;
     _position        = Duration.zero;
-    _duration        = Duration.zero;
+    _duration        = null;
     _sessionRestored = false;
-    NowPlayingNotificationService.instance.dismiss(); // Clean up notification
     notifyListeners();
   }
 
@@ -136,7 +115,7 @@ class PlayerProvider extends ChangeNotifier {
   PlayerRepeatMode     _repeat       = PlayerRepeatMode.none;
   bool                 _shuffle      = false;
   Duration             _position     = Duration.zero;
-  Duration?             _duration     = Duration.zero;
+  Duration?            _duration;   // nullable — null until first track loads
 
   bool    _sessionRestored = false;
   bool    get sessionRestored => _sessionRestored;
@@ -170,12 +149,12 @@ class PlayerProvider extends ChangeNotifier {
   bool get isRepeatOne => _repeat == PlayerRepeatMode.repeatOne;
   bool get isRepeating => _repeat != PlayerRepeatMode.none;
   Duration get position => _position;
-  Duration get duration => _duration!;
+  Duration get duration => _duration ?? Duration.zero;  // never throws
 
   double get progress {
     final total = _duration?.inMilliseconds ?? 0;
     if (total == 0) return 0.0;
-    return ((_position.inMilliseconds) / total).clamp(0.0, 1.0);
+    return (_position.inMilliseconds / total).clamp(0.0, 1.0);
   }
 
   bool get canSkipNext => _currentIndex < _queue.length - 1 || isRepeating;
@@ -217,11 +196,9 @@ class PlayerProvider extends ChangeNotifier {
       _currentIndex    = index;
       _position        = Duration(milliseconds: posMs);
       _sessionRestored = true;
-      // Load source but don't auto-play — let the user resume
       await _safePlayUrl(_queue[_currentIndex]);
       await _audio.pause();
       await _audio.seek(_position);
-      _updateNotification();
       notifyListeners();
     } catch (_) {
       await _clearSession();
@@ -240,7 +217,6 @@ class PlayerProvider extends ChangeNotifier {
     notifyListeners();
     await _audio.seek(_position);
     await _audio.play();
-    _updateNotification();
   }
 
   void dismissRestoredSession() {
@@ -248,9 +224,8 @@ class PlayerProvider extends ChangeNotifier {
     _queue        = [];
     _currentIndex = -1;
     _position     = Duration.zero;
-    _duration     = Duration.zero;
+    _duration     = null;
     _clearSession();
-    NowPlayingNotificationService.instance.dismiss(); // Clean up notification
     notifyListeners();
   }
 
@@ -267,6 +242,7 @@ class PlayerProvider extends ChangeNotifier {
       rethrow;
     }
   }
+
   Future<void> playItem(MediaItemModel item, {List<MediaItemModel>? playlist}) async {
     _sessionRestored = false;
     _playbackError   = null;
@@ -275,12 +251,11 @@ class PlayerProvider extends ChangeNotifier {
     _currentIndex = _queue.indexWhere((e) => e.id == item.id);
     if (_currentIndex == -1) { _queue.insert(0, item); _currentIndex = 0; }
     _position = Duration.zero;
-    _duration = Duration.zero;
+    _duration = null;
     notifyListeners();
     try {
       await _safePlayUrl(_queue[_currentIndex]);
       _saveSession();
-      _updateNotification();
     } catch (_) { return; }
     _isLoading = false;
     notifyListeners();
@@ -294,13 +269,11 @@ class PlayerProvider extends ChangeNotifier {
       if (_sessionRestored) _sessionRestored = false;
       await _audio.play();
     }
-    _updateNotification();
     notifyListeners();
   }
 
   Future<void> pause() async {
     await _audio.pause();
-    _updateNotification();
     notifyListeners();
   }
 
@@ -319,13 +292,13 @@ class PlayerProvider extends ChangeNotifier {
     } else return;
     _currentIndex  = next;
     _position      = Duration.zero;
+    _duration      = null;
     _playbackError = null;
     _isLoading     = true;
     notifyListeners();
     try {
       await _safePlayUrl(_queue[_currentIndex]);
       _saveSession();
-      _updateNotification();
     } catch (_) { return; }
     _isLoading = false;
     notifyListeners();
@@ -339,20 +312,23 @@ class PlayerProvider extends ChangeNotifier {
       _currentIndex = _queue.length - 1;
     } else { await _audio.seek(Duration.zero); return; }
     _position      = Duration.zero;
+    _duration      = null;
     _playbackError = null;
     _isLoading     = true;
     notifyListeners();
     try {
       await _safePlayUrl(_queue[_currentIndex]);
       _saveSession();
-      _updateNotification();
     } catch (_) { return; }
     _isLoading = false;
     notifyListeners();
   }
 
-  Future<void> seekTo(double progress) async => _audio.seek(
-      Duration(milliseconds: (progress * _duration!.inMilliseconds).toInt()));
+  Future<void> seekTo(double progress) async {
+    final total = _duration?.inMilliseconds ?? 0;
+    if (total == 0) return;
+    await _audio.seek(Duration(milliseconds: (progress * total).toInt()));
+  }
 
   void toggleShuffle() { _shuffle = !_shuffle; notifyListeners(); }
 
@@ -376,38 +352,30 @@ class PlayerProvider extends ChangeNotifier {
   Future<void> jumpTo(int index) async {
     if (index < 0 || index >= _queue.length) return;
     _currentIndex = index;
-    _position = Duration.zero;
-    _duration = Duration.zero;
+    _position     = Duration.zero;
+    _duration     = null;
     _playbackError = null;
-    _isLoading = true;
+    _isLoading    = true;
     notifyListeners();
 
     try {
       var currentItem = _queue[_currentIndex];
 
-      // ── NEW CRITICAL INTERCEPT FOR QURAN API ──
-      // If the item doesn't have an audioUrl yet, dynamically pull it on-the-fly
       if (currentItem.category == MediaCategory.quran && currentItem.audioUrl.isEmpty) {
         final int surahNumber = currentItem.extra['number'] ?? 1;
-
-        // Fetch streaming URL dynamically from Quran.com v4
         final dynamicUrl = await QuranApiService.fetchSurahAudioUrl(surahNumber);
-
-        // Update the item inside the active playlist queue
         _queue[_currentIndex] = MediaItemModel(
-          id: currentItem.id,
-          title: currentItem.title,
-          subtitle: currentItem.subtitle,
-          audioUrl: dynamicUrl,
+          id:         currentItem.id,
+          title:      currentItem.title,
+          subtitle:   currentItem.subtitle,
+          audioUrl:   dynamicUrl,
           artworkUrl: currentItem.artworkUrl,
-          category: currentItem.category,
-          extra: currentItem.extra,
+          category:   currentItem.category,
+          extra:      currentItem.extra,
         )..arabicTitle = currentItem.arabicTitle;
       }
 
-      // Hand the verified streaming endpoint down to the player handler
       await _safePlayUrl(_queue[_currentIndex]);
-      _updateNotification();
 
     } on TimeoutException {
       _setError('Connection timed out. Check your internet and try again.');
